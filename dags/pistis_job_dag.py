@@ -1,0 +1,922 @@
+# Copyright 2024 Eviden Spain S.A
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import json
+import pendulum
+import requests
+import pathlib 
+import logging
+from airflow import Dataset
+from airflow.decorators import dag, task
+from airflow.providers.http.operators.http import SimpleHttpOperator
+from airflow.models.param import Param
+from airflow.operators.python import get_current_context
+from airflow.models.dagrun import DagRun
+from airflow.operators.empty import EmptyOperator
+from jsoninja import Jsoninja
+from urllib.parse import urlparse
+from datetime import datetime
+from airflow.models import Variable
+from base64 import decodebytes
+from io import BytesIO
+from base64 import b64encode
+from minio import Minio
+import os.path
+
+now = pendulum.now()
+
+@dag(start_date=datetime(2023,1,1), schedule="@once", catchup=False, params={
+        # job data        
+        "job_data": Param(
+            {
+                "prev_run": "000",
+                "root_dag_run": "000",
+                "job_name": "test_job",
+                "source": "http://dataset.pistis",
+                "content-type": "application/json",
+                "input_data": [],
+                "endpoint": "http://",
+                "method": "get",
+                "destination_type": "memory",
+                "lineage_tracking": True,
+                "uuid": "0",
+                "data_uuid": "0",
+                "bearer_token": ""
+            },
+            schema =  {
+                "type": "object",
+                "properties": {
+                    "prev_run": {
+                        "type": "string"
+                    },
+                    "root_dag_run": {
+                        "type": "string"
+                    }, 
+                    "wf_results_id": {
+                        "type": "string"
+                    },            
+                    "job_name": {
+                        "type": "string"
+                    },
+                    "source": {
+                        "type": "string"
+                    },
+                    "metadata": {
+                        "type": "object"
+                    },
+                    "content-type": {
+                        "type": "string"
+                    },
+                    "endpoint": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^(https?|wss?|ftp)://"
+                    },
+                    "input_data": {
+                        "type": "array",
+                        "minItems": 0,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "value": {"type": "string"}
+                            },
+                            "required": [
+                                "name",
+                                "value"
+                            ]               
+                        }
+                    },
+                    "method": {
+                        "type": "string",
+                        "enum": ["get", "post", "put", "delete"]
+                    },
+                    "destination_type": {
+                        "type": "string",
+                        "enum": ["memory", "factory_storage", "nifi", "lineage_tracker"]
+                    },
+                    "response_dataset_field_path": {
+                        "type": "string"
+                    },
+                    "response_metadata_field_path": {
+                        "type": "string"
+                    },
+                    "lineage_tracking": {
+                        "type": "boolean"
+                    },
+                    "uuid": {
+                        "type": "string"
+                    },
+                    "data_uuid": {
+                        "type": "string"
+                    },
+                    "bearer_token": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "prev_run",
+                    "job_name",
+                    "source",
+                    "endpoint",
+                    "input_data",
+                    "method",
+                    "destination_type"
+                ]
+            }   
+        )
+    }
+)
+
+def pistis_job_template():
+
+    MINIO_BUCKET_NAME = Variable.get("minio_pistis_bucket_api_key")
+    MINIO_ROOT_USER = Variable.get("minio_api_key")
+    MINIO_ROOT_PASSWORD = Variable.get("minio_passwd")
+    MINIO_URL =  Variable.get("minio_url")
+    DATA_CATALOGUE_URL = Variable.get("factory_data_catalogue_url")
+    DATA_REPO_URL = Variable.get("factory_data_repo_url")
+    DATA_STORAGE_URL = Variable.get("factory_data_storage_url")
+    DATA_CATALOGUE_API_KEY = Variable.get("factory_data_catalogue_api_key")
+    DATA_STORAGE_API_KEY = Variable.get("factory_data_storage_api_key")
+    DATASET_JSON_LD_TEMPLATE = Variable.get("factory_dataset_json_ld_template")
+    DATASET_JSON_LD_DATA_DISTRIBUTION_TEMPLATE = Variable.get("factory_dataset_json_ld_data_distribution_template")
+    IAM_URL = Variable.get("iam_url")
+    AUTH_URL = Variable.get("auth_url")
+    ORCHESTRABLE_SERVICES = ["data-check-in", "data-transformation", "insights-generator"]
+    CATALOG_NAME = Variable.get("catalog_name")
+
+    client = Minio(MINIO_URL, access_key=MINIO_ROOT_USER, secret_key=MINIO_ROOT_PASSWORD, secure=False)
+    jsoninja = Jsoninja()
+      
+    def is_valid_url(url):
+        try:
+            result = urlparse(url)
+            return all([result.scheme, result.netloc])
+        except ValueError:
+            return False
+        
+    def add_dataset_to_factory_data_storage(source, uuid, bearer_token):
+        logging.info(" ### Adding dataset to Factory Data Storage using source: " + source)
+        file=[]
+        s3_path = source[len("s3://"):]
+        s3_list = s3_path.split('/')
+        index = len(s3_list) - 2
+        if (len(s3_list) > 0):
+            bucket_name = s3_list[index]
+            object_name = s3_list[index + 1]
+            logging.info(" ### Getting S3 Object with bucket = " + bucket_name + " and object_name = " + object_name)
+            file = client.get_object(bucket_name,object_name)
+            files=[
+                   ('file',(object_name, file,'rb'))
+                ]
+
+        payload = {}
+          
+        #access_token = get_access_token()  
+        headers = {
+                    "Authorization": "Bearer " + bearer_token # DATA_STORAGE_API_KEY
+                  }
+        if (uuid == "none"):
+            endpoint = DATA_STORAGE_URL + "/api/files/create_file"
+            logging.info(" pistis_job_template#add_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+            res = requests.post(url=endpoint, headers=headers, data=payload, files=files)
+        else:
+            endpoint = DATA_STORAGE_URL + "/api/files/update_file?asset_uuid=" + uuid 
+            logging.info(" pistis_job_template#add_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+            res = requests.put(url=endpoint, headers=headers, data=payload, files=files)  
+            
+        
+        logging.info(" ### add_dataset_to_factory_data_storage request: " + str(res.json()))
+        json_res = res.json()
+        return json_res['asset_uuid']
+
+    def add_dataset_to_factory_data_catalogue(ds_json_ld, bearer_token):
+        # TO-DO define catalogue name as input
+        logging.info(" ### Adding dataset to Factory Data Catalogue ... ")
+
+        files = []
+        payload = json.dumps(ds_json_ld)
+            
+        headers = {
+                   "X-API-Key": DATA_CATALOGUE_API_KEY,
+                   #"Authorization": "Bearer " + bearer_token,
+                   "Content-Type": "application/ld+json"
+                  }
+        endpoint = DATA_REPO_URL + "/catalogues/" + CATALOG_NAME + "/datasets"
+            
+        logging.info(" pistis_job_template#add_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        
+        res = requests.post(url=endpoint, headers=headers, data=payload, files=files)
+        logging.info(" ### add_dataset_to_factory_data_catalogue request: " + str(res))
+        return res.json()        
+    
+    def persist_in_minio(field_value, source):
+        logging.info(" ### Persisting object in MINIO ... ")
+        logging.info(" ### FIELD_VALUE:  " + str(field_value))
+        object_url = field_value
+
+        persist_required = False
+        s3_path = source[len("s3://"):]
+        s3_list = s3_path.split('/')
+        index = len(s3_list) - 2
+        if (len(s3_list) > 0):
+            #bucket_name = s3_list[index]
+            object_name = s3_list[index + 1]
+
+        if (type(field_value) is dict):
+            logging.info(" ### Persisting a JSON object ... ")
+            persist_required = True
+            encoded_data = json.dumps(field_value).encode('utf-8')
+        elif (not is_valid_url(field_value)): 
+            logging.info(" ### Persisting a File ...  ")
+            persist_required = True
+            encoded_data = bytes(field_value, 'utf-8')   
+            
+        if (persist_required):
+            # Put  data in the bucket
+            result = client.put_object(MINIO_BUCKET_NAME, object_name, data=BytesIO(encoded_data), length=len(encoded_data)) 
+            object_url = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
+            logging.info(" ### Object persisted in MINIO. URL: " + object_url)    
+        
+        return object_url 
+
+    def update_workflow_status(status, message, runId):
+       json_wf = { "runId": runId, "status": status, "catalogue_dataset_endpoint": "none", "message": message }
+       wf_s3_endpoint =  "s3://" + MINIO_BUCKET_NAME + "/" + runId + ".json"
+       persist_in_minio(json_wf, wf_s3_endpoint)
+
+
+    def generate_dataset_json_ld(source, metadata, uuid_url):
+       
+       logging.info(" pistis_job_template#generate_dataset_json_ld: Starting json ld generation ... ") 
+       evaluable_attrs = ['dataset_name','dataset_description', 'insights'] ## Add  meta fields to be evaluated
+       ds_title = "Pistis Dataset"
+       ds_description = "Pistis Dataset"
+       s3_path = source[len("s3://"):]
+       s3_list = s3_path.split('/')
+       index = len(s3_list) - 2
+       insightsURL = "none"
+
+       if (len(s3_list) > 0):
+           bucket_name = s3_list[index]
+           object_name = s3_list[index + 1]
+           stat = client.stat_object(bucket_name,object_name)
+
+       logging.info(" pistis_job_template#generate_dataset_json_ld: Evaluating metadata ... ") 
+       for meta_field in metadata.keys():
+           logging.info(" ### metadata = " + meta_field + " and value = " + metadata[meta_field]) 
+           if (meta_field in evaluable_attrs):
+               if (meta_field == "dataset_name"):
+                    ds_title = metadata[meta_field]
+               elif (meta_field == "dataset_description"):
+                    ds_description = metadata[meta_field] 
+               elif (meta_field == "insights"):
+                    insightsURL = metadata[meta_field]     
+                              
+       date = datetime.utcnow().isoformat()
+
+       replacements = {
+                       "foaf_mbox_id" : "mailto:admin@pistis.eu",
+                       "foaf_name": "Pistis Job Configurator Publisher Limited",
+                       "skos_exactMatch_id": "https://subscriptionlicense.com",
+                       "ds_language": "en",
+                       "ds_description": ds_description,
+                       "date_issued": date,
+                       "date_modified": date,
+                       "ds_title": ds_title,
+                       "file_name": object_name,
+                       "accessURL": uuid_url,
+                       "ds_byte_size": str(stat.size),
+                       "insights": insightsURL
+                      }
+       template = json.loads(DATASET_JSON_LD_TEMPLATE)
+       logging.info(" pistis_job_template#generate_dataset_json_ld: TEMPLATE GENERATED = " + str(template)) 
+       return jsoninja.replace(template, replacements)
+
+ 
+    def generate_json_ld_data_distribution(access_url):      
+       logging.info(" pistis_job_template#generate_dataset_json_ld: Starting json ld generation ... ") 
+       
+       ds_title = "Additional Distribution - "                  
+       date = datetime.utcnow().isoformat()
+
+       replacements = {
+                       "data_dist_name": ds_title + date,
+                       "data_dist_accessURL": access_url,
+                       "date_issued": date
+                      }
+       template = json.loads(DATASET_JSON_LD_DATA_DISTRIBUTION_TEMPLATE)
+       logging.info(" pistis_job_template#generate_json_ld_data_distribution: TEMPLATE GENERATED = " + str(template)) 
+       return jsoninja.replace(template, replacements)
+        
+    def get_access_token():
+        logging.info(" pistis_job_template#get_access_token: Calling to IAM to get access token ... ")
+        payload = 'grant_type=password&client_id=c0604304-a46e-42f9-bec9-7894f5ba73a6--9eadeb89-d3d2-4690-aa90-1a4631a664f2&client_secret=upbYDaje2e5SG7RS0J8RwrtzQDxynRsh&username=pdt-01&password=pdt-01'
+          
+        headers = {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                  }
+        endpoint = AUTH_URL 
+            
+        logging.info(" pistis_job_template#add_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        
+        res = requests.post(url=endpoint, headers=headers, data=payload)
+        logging.info(" ### pistis_job_template#get_access_token  Response: " + str(res))
+        json_res = res.json()
+        return json_res['access_token']
+    
+    def notify_access_policy(uuid, name, description, access_token):
+       logging.info(" pistis_job_template#notify_access_policy: Calling to IAM to notify access policy for DS with UUID = " + str(uuid))
+       payload = {
+            "id": uuid,
+            "name": name,
+            "description": description
+       }
+          
+       headers = {
+                  "Content-Type": "application/json",
+                  "Authorization": "Bearer " + access_token 
+                  }
+       
+       endpoint = IAM_URL 
+            
+       logging.info(" pistis_job_template#notify_access_policy: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        
+       res = requests.post(url=endpoint, headers=headers, json=payload)
+       logging.info(" ### pistis_job_template#notify_access_policy  Response: " + str(res))
+       return res 
+    
+    def add_distribution_to_data_catalogue(uuid, ds_json_ld, bearer_token):
+       logging.info(" pistis_job_template#add_distribution_to_data_catalogue: Adding distribution to DS with UUID = " + str(uuid))
+
+       payload = json.dumps(ds_json_ld)
+            
+       headers = {
+                   "X-API-Key": DATA_CATALOGUE_API_KEY,
+                   #"Authorization": "Bearer " + bearer_token,
+                   "Content-Type": "application/ld+json"
+                  }
+       endpoint = DATA_REPO_URL + "/datasets/" + uuid + "/distributions" 
+            
+       logging.info(" pistis_job_template#add_distribution_to_data_catalogue: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        
+       res = requests.post(url=endpoint, headers=headers, data=payload)
+       logging.info(" ### pistis_job_template#add_distribution_to_data_catalogue  Response: " + str(res))
+       return res
+
+    def update_value(data, key_to_match, new_value):
+        #logging.info(" ### pistis_job_template#update_value: KEY_TO_MATCH = " + key_to_match)
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if key_to_match in key:
+                    #logging.info(" ### pistis_job_template#update_value: KEY = " + key + "; VALUE = " + new_value)
+                    if (isinstance(value, (dict))):
+                      data[key]["@value"] = new_value
+                    else:
+                      data[key] = new_value        
+                elif isinstance(value, (dict, list)):
+                    update_value(value, key_to_match, new_value)     
+        elif isinstance(data, list):
+            for item in data:
+                update_value(item, key_to_match, new_value)      
+
+    def update_metadata_in_data_catalogue(uuid, metadata, bearer_token):
+        # TO-DO define catalogue name as input
+        logging.info(" pistis_job_template#update_metadata_in_data_catalogue: Updating dataset to Factory Data Catalogue with ID = " + uuid)
+
+        payload = [] # json.dumps(ds_json_ld)
+            
+        headers = {
+                   "X-API-Key": DATA_CATALOGUE_API_KEY,
+                   #"Authorization": "Bearer " + bearer_token,
+                   "Content-Type": "application/json"
+                  }
+        endpoint = DATA_REPO_URL + "/datasets/" + uuid
+            
+        logging.info(" pistis_job_template#update_metadata_in_data_catalogue: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        
+        res = requests.get(url=endpoint, headers=headers, data=payload)
+
+        logging.info(" ### pistis_job_template#add_distribution_to_data_catalogue  Response: " + str(res))
+
+        ds_json = res.json()
+        for meta_field in metadata.keys():
+           if (metadata[meta_field].startswith("s3:/")):
+               ds_uuid = add_dataset_to_factory_data_storage(metadata[meta_field], "none", bearer_token)
+               metadata[meta_field] = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(ds_uuid)
+           update_value(ds_json, meta_field, metadata[meta_field])  
+
+        payload = json.dumps(ds_json)
+            
+        headers = {
+                   "X-API-Key": DATA_CATALOGUE_API_KEY,
+                   #"Authorization": "Bearer " + bearer_token,
+                   "Content-Type": "application/ld+json"
+                  }
+        endpoint = DATA_REPO_URL + "/datasets/" + uuid
+            
+        logging.info(" pistis_job_template#update_metadata_in_data_catalogue: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        
+        res = requests.put(url=endpoint, headers=headers, data=payload)
+
+        logging.info(" ### pistis_job_template#add_distribution_to_data_catalogue  Response: " + str(res))
+        return res
+
+    @task()
+    def retrieve_and_dump_data_and_metadata_to_bucket():
+
+        context = get_current_context()
+        job_info = context["params"]["job_data"]
+        source = job_info["source"]
+        root_run_id = job_info["root_dag_run"]
+        wf_results_id = job_info['wf_results_id'] 
+        job_name = job_info["job_name"]
+        content = ""
+        
+        try:
+            dr_list = DagRun.find(dag_id="pistis_workflow_template", run_id=root_run_id)
+
+            if (source == "workflow"):
+               logging.info(" pistis_job_template#retrieve: Retrievind data and metadata from workflow ... ") 
+
+               # Initialze JSON workflow resukts 
+               # wf_results = { "runId": root_run_id, "status": "executing", "catalogue_dataset_endpoint": "none" }
+               # wf_s3_endpoint =  "s3://" + MINIO_BUCKET_NAME + "/" + root_run_id + ".json"
+               # persist_in_minio(wf_results, wf_s3_endpoint)
+
+               # Retrieve wf raw data using wf param dataset and update them over job source
+               if (len(dr_list) > 0):
+                    #job_info["source"] = dr_list[0].conf['dataset']
+
+                    # Retrieving dataset
+                    json_dataset = dr_list[0].conf['dataset']
+                    ds_name = dr_list[0].conf['dataset_name']
+                    ds_description = dr_list[0].conf['dataset_description']
+                    file_full_name = json_dataset['name']
+                    file_name = os.path.splitext(file_full_name)[0]
+                    extension = os.path.splitext(file_full_name)[1]
+                    file_base64_string = json_dataset['content']
+                    decoded_data = decodebytes(file_base64_string.encode("utf-8"))
+                    #file = BytesIO(decoded_data)
+                    #files[field['name']] = ("airflow_dataset.csv", file, 'text/csv') 
+
+                    # Retrieving metadata
+                    #json_meta = dr_list[0].conf['metadata']
+                    #json_meta_encode_data = json.dumps(json_meta).encode('utf-8')
+
+                    # Put  data in the bucket
+                    result = client.put_object(MINIO_BUCKET_NAME, file_name + "_ds." + root_run_id + extension, data=BytesIO(decoded_data), length=len(decoded_data)) 
+                    
+                    # update source using minio uri
+                    job_info["source"] = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
+
+                    # Put metedata in a bucket
+                    #result = client.put_object(MINIO_BUCKET_NAME, file_name + "_meta." + root_run_id + ".json", data=BytesIO(json_meta_encode_data), length=len(json_meta_encode_data)) 
+
+                    # Update metadata using wf inputs
+                    #job_info["metadata"] = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
+                    job_info["metadata"] = {"dataset_name": ds_name, "dataset_description": ds_description}
+
+            elif (source == "job"):
+                # To Do -> use source and auth info to retrieve data source
+                logging.info(" pistis_job_template#retrieve: Retrievind data from job ... ")       
+            elif (is_valid_url(source)):
+                # To Do -> use source and auth info to retrieve data source
+                logging.info(" pistis_job_template#retrieve: Retrievind data from url (data path)" + str(source)) 
+
+            return job_info
+        
+        except Exception as e:
+             update_workflow_status("error", "JOB =" + job_name + " ; TASK => retrieve_and_dump_data_and_metadata_to_bucket : " +  repr(e), wf_results_id)
+
+    @task()
+    def resolve_mappings(job_info):
+        context = get_current_context()        
+        source = job_info["source"]
+        root_run_id = job_info["root_dag_run"]
+        wf_results_id = job_info['wf_results_id'] 
+        prev_run = job_info["prev_run"]
+        current_job_name = job_info["job_name"]
+        jobs = [current_job_name]
+        evaluable_attrs = ['input_data','source']
+
+        try: 
+            prev_run_list = prev_run.split('#')
+            if (len(prev_run_list) > 0):
+                prev_job_name = prev_run_list[0]
+                prev_run_id = prev_run_list[1]
+            
+                if prev_job_name not in jobs:
+                    jobs.append(prev_job_name)
+
+                if (prev_job_name != 'none'):
+
+                    logging.info("pistis_workflow_template#resolve_mappings: Dag Run_Id = " + str(prev_run_id)) 
+                    dr_list = DagRun.find(dag_id="pistis_job_template", run_id=prev_run_id)
+                    logging.info("pistis_workflow_template#resolve_mappings: DR List = " + str(len(dr_list))) 
+                    
+                    if (len(dr_list) > 0):
+                        ti = dr_list[0].get_task_instance(task_id='resolve_mappings')
+                        logging.info("pistis_workflow_template#resolve_mappings: Dag Task Instance = " + str(ti))
+                        
+                        task_result = ti.xcom_pull(task_ids='resolve_mappings', key='return_value') 
+                        logging.info("pistis_workflow_template#resolve_mappings: Task Result = " + str(task_result))
+
+                        ti = dr_list[0].get_task_instance(task_id='storage')
+                        logging.info("pistis_workflow_template#resolve_mappings: Dag Task Instance = " + str(ti))
+                        
+                        task_meta_result = ti.xcom_pull(task_ids='storage', key='return_value') 
+                        logging.info("pistis_workflow_template#resolve_mappings: Task Result = " + str(task_meta_result))    
+
+                        # update metadata using previous job metadata
+                        job_info["metadata"] = task_meta_result['metadata']
+
+                    # Update input_data with results comming from previous job execution
+                    #input_data = job_info["input_data"]
+                        
+                    logging.info("pistis_workflow_template#resolve_mappings: Job List = " + str(jobs))     
+                    for job_name in jobs:
+                        logging.info("pistis_workflow_template#resolve_mappings: Jobs loop -> Job = " + str(job_name))
+                        for attr in evaluable_attrs:
+                            value_list = []
+                            if (type(job_info[attr]) is list):
+                                value_list = value_list + job_info[attr]
+                            else:  
+                                value_list.append(attr) 
+
+                            for idata in value_list:
+                                logging.info("pistis_workflow_template#resolve_mappings: Input Data -> Field = " + str(idata))
+
+                                mapping_regex = "none"    
+
+                                if ("value" in idata):
+                                   mapping_regex = idata['value'] 
+                                else:      
+                                   mapping_regex =  job_info[idata] 
+
+                                if (mapping_regex.startswith(job_name)):
+                                
+                                    # remove job name from mapping definition
+                                    mapping =  mapping_regex.replace(job_name + ".", "")
+                                    map_list = mapping.split('.') 
+                                    map_value = "none"
+                                    job_data = "none"
+
+                                    if (job_name == current_job_name):
+                                        job_data = job_info
+                                    else:
+                                        job_data = task_result    
+                                    
+                                    for attr in map_list:
+                                        logging.info("pistis_workflow_template#resolve_mappings: Mapping List -> attr = " + str(attr))
+                                        # if current job use context to resolve
+                                        #if (job_name == current_job_name):
+                                        
+                                        if type(job_data) is list:
+                                                # if (attr in job_data.keys()):
+                                                #     map_value = job_data[attr]
+                                                #     logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(attr) + " => " + str(map_value))
+                                                    
+                                                # else:
+                                                    
+                                                # Search data based on key and value using filter and list method
+                                                rlist = list(filter(lambda x: (x['name']==attr), job_data))
+                                                if (len(rlist) > 0):
+                                                    map_value= rlist[0]['value']
+                                                    logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(rlist[0]['value']) + " => " + str(map_value))
+
+                                        elif (attr in job_data.keys()):
+                                            if (type(job_data[attr]) is not list):
+                                                map_value = job_data[attr]
+                                                logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(job_data[attr]) + " => " + str(map_value))
+                                            job_data = job_data[attr]
+                                                
+                                        else:        
+                                            map_value = job_data
+                                            logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(job_data) + " => " + str(map_value))    
+
+                                        # else:     
+
+                                        #     # check if attr is key on json object
+                                        #     if attr in task_result.keys():
+                                        #         map_value = task_result[attr]
+                                        #         logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(attr) + " => " + str(map_value))
+                                        #     else:
+                                        #     # Search data based on key and value using filter and list method
+                                        #         rlist = list(filter(lambda x: (x['name']==attr), input_data))
+                                        #         if (len(rlist) > 0):
+                                        #             map_value= rlist[0]['value'] 
+                                        #             logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(rlist[0]['value']) + " => " + str(map_value))    
+                                                        
+                                    # update resolved mapping into job input data
+                                    if ('value' in idata):
+                                        idata['value'] = map_value
+                                    else:
+                                        job_info[idata] = map_value   
+                                    logging.info("pistis_workflow_template#resolve_mappings: Mapping resolved for " + str(idata) + " with " + str(map_value))                            
+                    
+                    
+            return job_info
+        
+        except Exception as e:
+             update_workflow_status("error", "JOB =" + current_job_name + " ; TASK => resolve_mappings: " +  repr(e), wf_results_id)
+    
+    @task()
+    def callService (job_info):
+        context = get_current_context()
+        endpoint = job_info["endpoint"]
+        method = job_info["method"]
+        ctype=  job_info["content-type"]
+        job_name = job_info["job_name"]
+        wf_results_id = job_info['wf_results_id'] 
+        bearer_token = job_info['bearer_token'] 
+        
+        # headers={"User-Agent": "Pistis", 
+        #          "Accept": "*/*",
+        #          "Content-Type": ctype}
+        
+        headers = {
+                    "Accept": ctype,
+                    "Authorization": "Bearer " + bearer_token 
+                  }
+        
+        #evaluable_attrs = ['file', 'metadata']
+        evaluable_attrs = ['file']
+        input_data= job_info["input_data"]
+        data = json.loads('{}')
+        files = json.loads('{}')
+        run_id = context['dag_run'].run_id
+        root_run_id = job_info["root_dag_run"]
+
+        try:
+
+            # Build json data from job input data
+            for field in input_data:
+                logging.info(" pistis_job_template#callService: Calling Service with: Field = " + str(field))
+                field_value = field['value']
+                if (type(field_value) is str):
+                        field_value = field_value.replace("'", "\"")
+
+                if (field['name'] in evaluable_attrs):
+                    file_name = "airflow_dataset:_" + run_id
+                    if (field_value.startswith("s3://")):
+                        field_value = field_value[len("s3://"):]
+                        s3_list = field_value.split('/')
+                        if (len(s3_list) > 0):
+                            bucket_name = s3_list[0]
+                            object_name = s3_list[1]
+                            file = client.get_object(bucket_name,object_name)
+                            file_name = object_name
+                    else:
+                        base64_string = field_value             
+                        decoded_data = decodebytes(base64_string.encode("utf-8"))
+                        file = BytesIO(decoded_data)
+
+                    if (field['name'] == "file"):
+                        files[field['name']] = (file_name, file) 
+                    #elif (field['name'] == "metadata"):   
+                    #   data[field['name']] = file
+
+                else:     
+                  data[field['name']] = field_value
+                
+            
+            logging.info(" pistis_job_template#callService: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; method = " + str(method) + "; data = " + str(data))
+            if (method.lower() == "post" ):
+              res = requests.post(url=endpoint,headers=headers,data=data, files=files)
+            elif (method.lower() == "get" ):
+              res = requests.get(url=endpoint,headers=headers,data=data, files=files)
+            elif (method.lower() == "put" ):
+              res = requests.put(url=endpoint,headers=headers,data=data, files=files)
+            elif (method.lower() == "delete" ):
+              res = requests.delete(url=endpoint,headers=headers,data=data)      
+            logging.info(" pistis_job_template#callService: Service Reponse: " + str(res) ) 
+            
+            # Turns your json dict into a str
+            #json_res = json.dumps(res.json())  
+            #base64_bytes = b64encode(bytes(json_res, 'utf-8'))
+            #base64_string = base64_bytes.decode("utf-8")
+            #decoded_data = decodebytes(base64_string.encode("utf-8"))
+
+            # upload response in minio
+            #result = client.put_object(MINIO_BUCKET_NAME, "pistis_service_respone_" + run_id + ".json", data=BytesIO(decoded_data), length=len(decoded_data), content_type="application/json") 
+
+            #update source with last version of ds
+            logging.info(" ### Updating source with last version of ds .... ")
+            #job_info["source"] = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
+
+            dataset_field_path = job_info["response_dataset_field_path"]
+            if (not dataset_field_path == "") and (not dataset_field_path.isspace()) and (dataset_field_path.strip().lower() != "none"): 
+                if (dataset_field_path.strip().lower() == "file"):
+                    logging.info(" ### Getting request content and decoding .... ")
+                    res_val = res.content.decode('utf-8')
+                    logging.info(" ### Result:  " + str(res_val))
+                else:
+                    logging.info(" ### Getting request as JSON .... ")
+                    res_val = res.json()
+                    logging.info(" ### Result:  " + str(res_val))    
+
+                    if (dataset_field_path.strip().lower() != "json"):
+                        field_list = dataset_field_path.split('.')
+       
+                        for field in field_list:
+                            res_val = res_val[field]
+                
+                logging.info(" ### Persisting Resuls in Minio ... ")
+                object_url = persist_in_minio(res_val, job_info["source"])
+                job_info["source"] = object_url
+
+            # TO-DO update metadata with last version of metadara
+            metadata_field_path = job_info["response_metadata_field_path"]
+            if (not metadata_field_path == "") and (not metadata_field_path.isspace()) and (metadata_field_path.strip().lower() != "none"): 
+                json_res_val = res.json()
+                
+                # TO-DO support metadata fiels path as list ([key:path;key2:path; ...])
+                meta_field_list = metadata_field_path.split(':')
+                if (len(meta_field_list) > 1):
+                    template_field_key = meta_field_list[0]
+                    meta_field_path = meta_field_list[1]
+                    
+                    if (meta_field_path.strip().lower() != "json"):
+                        field_list = metadata_field_path.split('.')
+                                
+                        for field in field_list:
+                            json_res_val = json_res_val[field]
+                        
+                    else:
+                        json_s3_name = endpoint[len("http://"):]
+                        s3_full_name = "s3://" + MINIO_BUCKET_NAME + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".json"
+                        json_res_val = persist_in_minio(json_res_val, s3_full_name)
+
+                #object_url = persist_in_minio(json_res_val, job_info["metadata"])
+                dict = { template_field_key: json_res_val }
+                job_info["metadata"].update(dict)
+
+            return job_info 
+        
+        except Exception as e:
+             update_workflow_status("error", "JOB =" + job_name + " ; TASK => callService task: " +  repr(e), wf_results_id)  
+    
+
+       
+    def register_default_access_policy(uuid, ds_name, ds_desc, bearer_token):
+        logging.info("### pistis_job_template#register_default_access_policy: Registering default access policy ... ")
+
+        ## Get Access Token
+        #access_token = get_access_token()
+
+        ## Call to IAM to notify access policy 
+        notify_access_policy(uuid, ds_name, ds_desc, bearer_token)   
+
+    def requires_add_data_distribution(service_endpoint):
+        return ORCHESTRABLE_SERVICES[1] in service_endpoint
+    
+    def requires_access_policy_notification(service_endpoint):
+        return ORCHESTRABLE_SERVICES[0] in service_endpoint
+    
+    def requires_only_metadata_update(service_endpoint):
+        return ORCHESTRABLE_SERVICES[2] in service_endpoint
+        
+    @task()
+    def storage(job_info):
+        #json_res = json.dumps(serviceResponse) 
+        #context = get_current_context()
+        #job_info = context["params"]["job_data"]
+        #destination_type = context["params"]["job_data"]["destination_type"]
+        #destination_type = job_info['destination_type']
+        wf_results_id = job_info['wf_results_id'] 
+        root_run_id = job_info["root_dag_run"]
+        job_name = job_info["job_name"]
+        source = job_info["source"]
+        metadata = job_info["metadata"]
+        service_endpoint = job_info["endpoint"]
+        prev_run = job_info["prev_run"]
+        last_job = job_info["is_last_job"]
+        bearer_token = job_info["bearer_token"]
+        ds_path_url = source
+        uuid = 0
+
+        try:
+            # Check if lineage tracking is needed
+            #if (lineage_tracking or (destination_type == "factory_storage")):
+            if requires_access_policy_notification(service_endpoint):
+                # Store data asset in factory storage
+                logging.info(" pistis_job_template#requires_access_policy_notification: Storing data in factory storage ... ")
+                uuid = add_dataset_to_factory_data_storage(source, "none", bearer_token)
+                ds_path_url = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(uuid)
+
+                # Notify to IAM the default access policy associated to the DS
+                register_default_access_policy(uuid, metadata["dataset_name"], metadata["dataset_description"], bearer_token)
+
+                # Store metadata in factory data catalogue using uuid got it from data storage
+                ds_json_ld = generate_dataset_json_ld(source, metadata, ds_path_url)
+                logging.info(" pistis_job_template#requires_access_policy_notification: Persiting metadata in Factory Data Catalogue using UUID = " + str(uuid))
+                catalogue_ds_uuid = add_dataset_to_factory_data_catalogue(ds_json_ld, bearer_token)
+                logging.info(" pistis_job_template#requires_access_policy_notification: Persited with UUID " + str(catalogue_ds_uuid))
+                
+                # Update job info with UUID
+                job_info["uuid"] = catalogue_ds_uuid['id']
+                job_info["data_uuid"] = uuid
+
+            if requires_add_data_distribution(service_endpoint):
+                # Add data distribution to DS in the catalogue 
+                logging.info(" pistis_job_template#requires_access_policy_notification: Adding data distribution in data catalogue ... ")
+
+                prev_run_list = prev_run.split('#')
+                if (len(prev_run_list) > 0):
+                    prev_job_name = prev_run_list[0]
+                    prev_run_id = prev_run_list[1]
+
+                    if (prev_job_name != 'none'):
+                        dr_list = DagRun.find(dag_id="pistis_job_template", run_id=prev_run_id)
+                        logging.info("pistis_workflow_template#requires_add_data_distribution: DR List = " + str(len(dr_list))) 
+                        
+                        if (len(dr_list) > 0):
+                            ti = dr_list[0].get_task_instance(task_id='resolve_mappings')
+                            logging.info("pistis_workflow_template#requires_add_data_distribution: Dag Task Instance = " + str(ti))
+                                
+                            task_result = ti.xcom_pull(task_ids='storage', key='return_value') 
+                            logging.info("pistis_workflow_template#requires_add_data_distribution: Task Result = " + str(task_result))
+
+                            # update metadata using previous job metadata
+                            job_info["uuid"] = task_result['uuid']
+                            job_info["data_uuid"] = task_result['data_uuid']
+
+                if ("uuid" in job_info.keys()): 
+                    logging.info(" pistis_job_template#requires_add_data_distribution: Storing data in factory storage ... ")
+                    new_uuid = add_dataset_to_factory_data_storage(source, job_info["data_uuid"], bearer_token)
+                    logging.info(" pistis_job_template#requires_add_data_distribution: Added DS with UUID = " + str(new_uuid))
+                    accessURL = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(new_uuid)
+                    json_ld = generate_json_ld_data_distribution(accessURL)
+                    logging.info(" pistis_job_template#requires_add_data_distribution: Adding data distribution ... ")           
+                    add_distribution_to_data_catalogue(job_info["uuid"], json_ld, bearer_token)
+                    logging.info(" pistis_job_template#requires_add_data_distribution: Data distribution added ... ")
+
+            if (requires_only_metadata_update(service_endpoint)):
+                # Add data distribution to DS in the catalogue 
+                logging.info(" pistis_job_template#requires_only_metadata_update: Update only metadata in data catalogue ... ")
+                # Store metadata in factory data catalogue using uuid got it from data storage
+                prev_run_list = prev_run.split('#')
+                if (len(prev_run_list) > 0):
+                    prev_job_name = prev_run_list[0]
+                    prev_run_id = prev_run_list[1]
+
+                    if (prev_job_name != 'none'):
+                        dr_list = DagRun.find(dag_id="pistis_job_template", run_id=prev_run_id)
+                        logging.info("pistis_workflow_template#requires_only_metadata_update: DR List = " + str(len(dr_list))) 
+                        
+                        if (len(dr_list) > 0):
+                            ti = dr_list[0].get_task_instance(task_id='resolve_mappings')
+                            logging.info("pistis_workflow_template#requires_only_metadata_update: Dag Task Instance = " + str(ti))
+                                
+                            task_result = ti.xcom_pull(task_ids='storage', key='return_value') 
+                            logging.info("pistis_workflow_template#requires_only_metadata_update: Task Result = " + str(task_result))
+
+                            # update metadata using previous job metadata
+                            job_info["uuid"] = task_result['uuid']
+                            job_info["data_uuid"] = task_result['data_uuid']
+
+                if ("uuid" in job_info.keys()): 
+                    logging.info(" pistis_workflow_template#requires_only_metadata_update: Updating metadata in Factory Data Catalogue using UUID = " + job_info["uuid"])
+                    #uuid = add_dataset_to_factory_data_storage(source)
+                    uuid = job_info["uuid"]
+                    #logging.info(" pistis_job_template#requires_only_metadata_update: Added DS with UUID = " + uuid)
+                    #ds_path_url = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + uuid
+                    #ds_json_ld = generate_dataset_json_ld(source, metadata, ds_path_url)
+                    logging.info(" pistis_job_template#requires_only_metadata_update: Updating metadata in data catalogue ... ") 
+                    update_metadata_in_data_catalogue(job_info["uuid"], metadata, bearer_token)
+                    logging.info(" pistis_job_template#requires_only_metadata_update: Metadata updated ... ") 
+
+            # Update JSON workflow resukts 
+            if (last_job):
+                ds_catalogue_url = {'id': job_info["uuid"]} # DATA_CATALOGUE_URL + "/datasets/" + job_info["uuid"]
+                wf_results = { "runId": wf_results_id, "status": "finished", "catalogue_dataset_endpoint": ds_catalogue_url }
+                wf_s3_endpoint =  "s3://" + MINIO_BUCKET_NAME + "/" + root_run_id + ".json"
+                persist_in_minio(wf_results, wf_s3_endpoint)
+                
+            return job_info 
+
+        except Exception as e:
+             logging.info(" ### STORE TASK EXCEPTION ... ")
+             update_workflow_status("error", "JOB =" + job_name + " ; TASK => storage task: " +  repr(e), wf_results_id) 
+
+    job_retrieve = retrieve_and_dump_data_and_metadata_to_bucket()
+    job_mappings = resolve_mappings(job_retrieve)
+    job_data = callService(job_mappings)
+    ds_path_url = storage(job_data)
+
+    job_retrieve >> job_mappings >> job_data >> ds_path_url
+
+pistis_job_template()
