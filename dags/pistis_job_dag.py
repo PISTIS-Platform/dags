@@ -32,7 +32,11 @@ from base64 import decodebytes
 from io import BytesIO
 from base64 import b64encode
 from minio import Minio
+from fastparquet import ParquetFile
 import os.path
+import pandas as pd
+import csv
+
 
 now = pendulum.now()
 
@@ -156,6 +160,7 @@ def pistis_job_template():
     AUTH_URL = Variable.get("auth_url")
     ORCHESTRABLE_SERVICES = ["data-check-in", "data-transformation", "insights-generator"]
     CATALOG_NAME = Variable.get("catalog_name")
+    PUBLISHER =  Variable.get("publisher_name")
 
     client = Minio(MINIO_URL, access_key=MINIO_ROOT_USER, secret_key=MINIO_ROOT_PASSWORD, secure=False)
     jsoninja = Jsoninja()
@@ -289,7 +294,7 @@ def pistis_job_template():
 
        replacements = {
                        "foaf_mbox_id" : "mailto:admin@pistis.eu",
-                       "foaf_name": "Pistis Job Configurator Publisher Limited",
+                       "foaf_name": PUBLISHER,
                        "skos_exactMatch_id": "https://subscriptionlicense.com",
                        "ds_language": "en",
                        "ds_description": ds_description,
@@ -434,6 +439,37 @@ def pistis_job_template():
         logging.info(" ### pistis_job_template#add_distribution_to_data_catalogue  Response: " + str(res))
         return res
 
+
+    def transform_to_csv(file, csv_file, extension):
+        
+        logging.info(" ### pistis_job_template#transform_to_csv: Evaluating file format for conversion to CSV ")
+        if extension.lower() == ".json":
+           logging.info(" ### pistis_job_template#transform_to_csv: Converting file from JSON to CSV ")
+           with open(file, encoding='utf-8') as inputfile:
+              df = pd.read_json(inputfile)
+              
+           df.to_csv(csv_file, encoding='utf-8', index=False)            
+        
+        elif extension.lower() == ".tsv":
+           logging.info(" ### pistis_job_template#transform_to_csv: Converting file from TSV to CSV ")
+           # Read the TSV file into a DataFrame
+           df = pd.read_csv(file, sep='\t')
+            
+           # Write the DataFrame to a CSV file
+           df.to_csv(csv_file, index=False)
+        
+        elif extension.lower() == ".parquet":
+           logging.info(" ### pistis_job_template#transform_to_csv: Converting file from Parquet to CSV ")
+           # Reading the data from Parquet File
+           pf = ParquetFile(file)
+
+           # Converting data in to pandas dataFrame
+           df = pf.to_pandas()
+
+           # Converting to CSV
+           df(csv_file, index = False)
+
+
     @task()
     def retrieve_and_dump_data_and_metadata_to_bucket():
 
@@ -444,6 +480,7 @@ def pistis_job_template():
         wf_results_id = job_info['wf_results_id'] 
         job_name = job_info["job_name"]
         content = ""
+        prefixes = ['.json', '.tsv', '.parquet']
         
         try:
             dr_list = DagRun.find(dag_id="pistis_workflow_template", run_id=root_run_id)
@@ -467,17 +504,34 @@ def pistis_job_template():
                     file_full_name = json_dataset['name']
                     file_name = os.path.splitext(file_full_name)[0]
                     extension = os.path.splitext(file_full_name)[1]
+                    CSV = ".csv"
                     file_base64_string = json_dataset['content']
+                    csv_file = file_name + CSV
                     decoded_data = decodebytes(file_base64_string.encode("utf-8"))
-                    #file = BytesIO(decoded_data)
+                    bytesio_object = BytesIO(decoded_data)
+
+                    # Write the stuff
+                    with open(file_full_name, "wb") as file:
+                        file.write(bytesio_object.getbuffer())
+
                     #files[field['name']] = ("airflow_dataset.csv", file, 'text/csv') 
 
                     # Retrieving metadata
                     #json_meta = dr_list[0].conf['metadata']
                     #json_meta_encode_data = json.dumps(json_meta).encode('utf-8')
 
+                    # Check file format is: json, csv, tsv or parquet
+                    if file_full_name.lower().endswith(tuple(prefixes)):
+                        transform_to_csv(file_full_name, csv_file, extension)
+                        with open(csv_file, "rb") as file:
+                            file_content = file.read()
+                            file_base64_string = b64encode(file_content).decode('utf-8')
+                            decoded_data = decodebytes(file_base64_string.encode("utf-8"))
+                    elif extension.lower() != CSV:
+                        raise Exception("File format not supported. Formats supported are: CSV, Json, TSV and Parquet")
+                        
                     # Put  data in the bucket
-                    result = client.put_object(MINIO_BUCKET_NAME, file_name + "_ds." + root_run_id + extension, data=BytesIO(decoded_data), length=len(decoded_data)) 
+                    result = client.put_object(MINIO_BUCKET_NAME, file_name + "_ds." + root_run_id + CSV, data=BytesIO(decoded_data), length=len(decoded_data)) 
                     
                     # update source using minio uri
                     job_info["source"] = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
@@ -488,6 +542,9 @@ def pistis_job_template():
                     # Update metadata using wf inputs
                     #job_info["metadata"] = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
                     job_info["metadata"] = {"dataset_name": ds_name, "dataset_description": ds_description}
+
+                    #remove temp file
+                    os.remove(file_full_name)
 
             elif (source == "job"):
                 # To Do -> use source and auth info to retrieve data source
@@ -500,6 +557,7 @@ def pistis_job_template():
         
         except Exception as e:
              update_workflow_status("error", "JOB =" + job_name + " ; TASK => retrieve_and_dump_data_and_metadata_to_bucket : " +  repr(e), wf_results_id)
+             raise Exception(" TASK => retrieve_and_dump_data_and_metadata_to_bucket : " +  repr(e))
 
     @task()
     def resolve_mappings(job_info):
@@ -632,6 +690,8 @@ def pistis_job_template():
         
         except Exception as e:
              update_workflow_status("error", "JOB =" + current_job_name + " ; TASK => resolve_mappings: " +  repr(e), wf_results_id)
+             raise Exception(" TASK => resolve_mappings: " +  repr(e))
+
     
     @task()
     def callService (job_info):
@@ -768,8 +828,8 @@ def pistis_job_template():
         
         except Exception as e:
              update_workflow_status("error", "JOB =" + job_name + " ; TASK => callService task: " +  repr(e), wf_results_id)  
+             raise Exception(" TASK => callService: " +  repr(e))
     
-
        
     def register_default_access_policy(uuid, ds_name, ds_desc, bearer_token):
         logging.info("### pistis_job_template#register_default_access_policy: Registering default access policy ... ")
@@ -911,6 +971,7 @@ def pistis_job_template():
         except Exception as e:
              logging.info(" ### STORE TASK EXCEPTION ... ")
              update_workflow_status("error", "JOB =" + job_name + " ; TASK => storage task: " +  repr(e), wf_results_id) 
+             raise Exception(" TASK => storage task: " +  repr(e))
 
     job_retrieve = retrieve_and_dump_data_and_metadata_to_bucket()
     job_mappings = resolve_mappings(job_retrieve)
