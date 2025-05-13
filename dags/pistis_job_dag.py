@@ -201,8 +201,10 @@ def pistis_job_template():
             tokens = object_name.split('.')
             extension = "." + tokens[-1]
 
-            if (extension != CSV):
-                transform_ds_format(file, res_file, extension, CSV)
+            logging.info(" ### Checking dataset extension =>  " + extension)
+
+            if (extension.lower() != CSV):
+                transform_ds_format(file, res_file, extension.lower(), CSV)
             else:
                 res_file = file    
 
