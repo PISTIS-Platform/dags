@@ -35,8 +35,9 @@ from minio import Minio
 from fastparquet import ParquetFile
 import os.path
 import pandas as pd
+import re
 import csv
-
+import chardet
 
 now = pendulum.now()
 
@@ -161,6 +162,12 @@ def pistis_job_template():
     ORCHESTRABLE_SERVICES = ["data-check-in", "data-transformation", "insights-generator"]
     CATALOG_NAME = Variable.get("catalog_name")
     PUBLISHER =  Variable.get("publisher_name")
+    XML = ".xml"
+    JSON = ".json"
+    XLSX = ".xlsx"
+    PARQUET = ".parquet"
+    CSV = ".csv"
+    TSV = ".tsv"
 
     client = Minio(MINIO_URL, access_key=MINIO_ROOT_USER, secret_key=MINIO_ROOT_PASSWORD, secure=False)
     jsoninja = Jsoninja()
@@ -171,6 +178,13 @@ def pistis_job_template():
             return all([result.scheme, result.netloc])
         except ValueError:
             return False
+        
+    def format_orginal_ds_name(ds_name):
+        # Regular expression pattern to match and remove the substring between _jc_ tags
+        pattern = r'_jc.*?_jc'
+
+        # Remove the matched substring
+        return re.sub(pattern, '', ds_name)    
         
     def add_dataset_to_factory_data_storage(source, uuid, bearer_token):
         logging.info(" ### Adding dataset to Factory Data Storage using source: " + source)
@@ -183,8 +197,17 @@ def pistis_job_template():
             object_name = s3_list[index + 1]
             logging.info(" ### Getting S3 Object with bucket = " + bucket_name + " and object_name = " + object_name)
             file = client.get_object(bucket_name,object_name)
+            res_file = "proc_" + object_name
+            tokens = object_name.split('.')
+            extension = "." + tokens[-1]
+
+            if (extension != CSV):
+                transform_ds_format(file, res_file, extension, CSV)
+            else:
+                res_file = file    
+
             files=[
-                   ('file',(object_name, file,'rb'))
+                   ('file',(object_name, res_file,'rb'))
                 ]
 
         payload = {}
@@ -250,6 +273,9 @@ def pistis_job_template():
             encoded_data = bytes(field_value, 'utf-8')   
             
         if (persist_required):
+
+            # Check and convert encoding if needed to UTF-8
+
             # Put  data in the bucket
             result = client.put_object(MINIO_BUCKET_NAME, object_name, data=BytesIO(encoded_data), length=len(encoded_data)) 
             object_url = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
@@ -273,11 +299,12 @@ def pistis_job_template():
        s3_list = s3_path.split('/')
        index = len(s3_list) - 2
        insightsURL = "none"
-
+       ds_name = ""
+       
        if (len(s3_list) > 0):
            bucket_name = s3_list[index]
            object_name = s3_list[index + 1]
-           stat = client.stat_object(bucket_name,object_name)
+           stat = client.stat_object(bucket_name, object_name)
 
        logging.info(" pistis_job_template#generate_dataset_json_ld: Evaluating metadata ... ") 
        for meta_field in metadata.keys():
@@ -292,16 +319,17 @@ def pistis_job_template():
                               
        date = datetime.utcnow().isoformat()
 
+       raw_name = format_orginal_ds_name(object_name)
        replacements = {
                        "foaf_mbox_id" : "mailto:admin@pistis.eu",
                        "foaf_name": PUBLISHER,
-                       "skos_exactMatch_id": "https://subscriptionlicense.com",
+                       "skos_exactMatch_id": "", #"https://subscriptionlicense.com",
                        "ds_language": "en",
                        "ds_description": ds_description,
                        "date_issued": date,
                        "date_modified": date,
                        "ds_title": ds_title,
-                       "file_name": object_name,
+                       "file_name": raw_name,
                        "accessURL": uuid_url,
                        "ds_byte_size": str(stat.size),
                        "insights": insightsURL
@@ -440,26 +468,70 @@ def pistis_job_template():
         return res
 
 
-    def transform_to_csv(file, csv_file, extension):
+    def convert_df_to_file (df, file, format):
+
+        logging.info(" ### pistis_job_template#transform_to_csv: Converting dataset to  " + format)
+        if (format.lower() == XML):
+                df.to_xml(file)
+        elif (format.lower() == XLSX):
+                df.to_excel(file, index=False)
+        elif (format.lower() == JSON):
+                df.to_json(file, orient='records', lines=True)
+        elif (format.lower() == CSV):
+                df.to_csv(file, index=False)
+        elif (format.lower() == PARQUET):
+                df.to_parquet(file)
+        elif (format.lower() == TSV):
+                df.to_csv(file, sep='\t', index=False)            
+
+    def detect_encoding(file_path):
+        with open(file_path, 'rb') as f:
+            raw_data = f.read()
+            result = chardet.detect(raw_data)
+            return result['encoding']
+
+    def convert_to_utf8(file_path):
+        encoding = detect_encoding(file_path)
+        with open(file_path, 'r', encoding=encoding) as f:
+            content = f.read()
         
-        logging.info(" ### pistis_job_template#transform_to_csv: Evaluating file format for conversion to CSV ")
-        if extension.lower() == ".json":
-           logging.info(" ### pistis_job_template#transform_to_csv: Converting file from JSON to CSV ")
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+        logging.info(" ### File " + file_path + " has been converted to UTF-8 encoding.")
+
+    def transform_ds_format(file, converted_file, output_format, extension):
+        
+        #logging.info(" ### pistis_job_template#transform_to_csv: Evaluating file format for conversion to CSV ")
+        logging.info(" ### pistis_job_template#transform_to_csv: Converting file from " + output_format + " to " + extension)
+        if extension.lower() == JSON:           
            with open(file, encoding='utf-8') as inputfile:
               df = pd.read_json(inputfile)
               
-           df.to_csv(csv_file, encoding='utf-8', index=False)            
+           #df.to_csv(converted_file, encoding='utf-8', index=False)            
         
-        elif extension.lower() == ".tsv":
-           logging.info(" ### pistis_job_template#transform_to_csv: Converting file from TSV to CSV ")
+        elif extension.lower() == TSV:
            # Read the TSV file into a DataFrame
            df = pd.read_csv(file, sep='\t')
             
            # Write the DataFrame to a CSV file
-           df.to_csv(csv_file, index=False)
+           #df.to_csv(converted_file, index=False)
+
+        elif extension.lower() == XML:
+           # Read the XML file into a DataFrame
+           df = pd.read_xml(file)
+            
+           # Write the DataFrame to a CSV file
+           #df.to_csv(converted_file, index=False)  
+
+        elif extension.lower() == XLSX:
+           # Read the XLSX file into a DataFrame
+           df = pd.read_excel(file)
+            
+           # Write the DataFrame to a CSV file
+           #df.to_csv(converted_file, index=False)      
         
-        elif extension.lower() == ".parquet":
-           logging.info(" ### pistis_job_template#transform_to_csv: Converting file from Parquet to CSV ")
+        elif extension.lower() == PARQUET:
            # Reading the data from Parquet File
            pf = ParquetFile(file)
 
@@ -467,7 +539,13 @@ def pistis_job_template():
            df = pf.to_pandas()
 
            # Converting to CSV
-           df(csv_file, index = False)
+           #df(converted_file, index = False)
+
+        elif extension.lower() == CSV:
+           # Read the TSV file into a DataFrame
+           df = pd.read_csv(file)   
+
+        convert_df_to_file(df, converted_file, output_format)   
 
 
     @task()
@@ -480,33 +558,33 @@ def pistis_job_template():
         wf_results_id = job_info['wf_results_id'] 
         job_name = job_info["job_name"]
         content = ""
-        prefixes = ['.json', '.tsv', '.parquet']
+        prefixes = [JSON, TSV, PARQUET, XML, XLSX]
         
         try:
             dr_list = DagRun.find(dag_id="pistis_workflow_template", run_id=root_run_id)
+            
+            # Retrieve wf raw data using wf param dataset and update them over job source
+            if (len(dr_list) > 0):
+                #job_info["source"] = dr_list[0].conf['dataset']
+                
+                ds_name = dr_list[0].conf['dataset_name']
+                ds_description = dr_list[0].conf['dataset_description']
 
-            if (source == "workflow"):
-               logging.info(" pistis_job_template#retrieve: Retrievind data and metadata from workflow ... ") 
+                if (source == "workflow"):
+                    logging.info(" pistis_job_template#retrieve: Retrievind data and metadata from workflow ... ") 
 
-               # Initialze JSON workflow resukts 
-               # wf_results = { "runId": root_run_id, "status": "executing", "catalogue_dataset_endpoint": "none" }
-               # wf_s3_endpoint =  "s3://" + MINIO_BUCKET_NAME + "/" + root_run_id + ".json"
-               # persist_in_minio(wf_results, wf_s3_endpoint)
-
-               # Retrieve wf raw data using wf param dataset and update them over job source
-               if (len(dr_list) > 0):
-                    #job_info["source"] = dr_list[0].conf['dataset']
+                    # Initialze JSON workflow resukts 
+                    # wf_results = { "runId": root_run_id, "status": "executing", "catalogue_dataset_endpoint": "none" }
+                    # wf_s3_endpoint =  "s3://" + MINIO_BUCKET_NAME + "/" + root_run_id + ".json"
+                    # persist_in_minio(wf_results, wf_s3_endpoint)
 
                     # Retrieving dataset
                     json_dataset = dr_list[0].conf['dataset']
-                    ds_name = dr_list[0].conf['dataset_name']
-                    ds_description = dr_list[0].conf['dataset_description']
                     file_full_name = json_dataset['name']
                     file_name = os.path.splitext(file_full_name)[0]
                     extension = os.path.splitext(file_full_name)[1]
-                    CSV = ".csv"
                     file_base64_string = json_dataset['content']
-                    csv_file = file_name + CSV
+                    conv_file = "raw_"  + file_full_name
                     decoded_data = decodebytes(file_base64_string.encode("utf-8"))
                     bytesio_object = BytesIO(decoded_data)
 
@@ -522,16 +600,16 @@ def pistis_job_template():
 
                     # Check file format is: json, csv, tsv or parquet
                     if file_full_name.lower().endswith(tuple(prefixes)):
-                        transform_to_csv(file_full_name, csv_file, extension)
-                        with open(csv_file, "rb") as file:
+                        transform_ds_format(file_full_name, conv_file, CSV , extension)
+                        with open(conv_file, "rb") as file:
                             file_content = file.read()
                             file_base64_string = b64encode(file_content).decode('utf-8')
                             decoded_data = decodebytes(file_base64_string.encode("utf-8"))
                     elif extension.lower() != CSV:
-                        raise Exception("File format not supported. Formats supported are: CSV, Json, TSV and Parquet")
+                        raise Exception("File format not supported. Formats supported are: CSV, Json, Xml, TSV, Xlsx and Parquet")
                         
                     # Put  data in the bucket
-                    result = client.put_object(MINIO_BUCKET_NAME, file_name + "_ds." + root_run_id + CSV, data=BytesIO(decoded_data), length=len(decoded_data)) 
+                    result = client.put_object(MINIO_BUCKET_NAME, file_name + "_jc" + root_run_id + "_jc" + CSV, data=BytesIO(decoded_data), length=len(decoded_data)) 
                     
                     # update source using minio uri
                     job_info["source"] = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
@@ -539,20 +617,20 @@ def pistis_job_template():
                     # Put metedata in a bucket
                     #result = client.put_object(MINIO_BUCKET_NAME, file_name + "_meta." + root_run_id + ".json", data=BytesIO(json_meta_encode_data), length=len(json_meta_encode_data)) 
 
-                    # Update metadata using wf inputs
-                    #job_info["metadata"] = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
-                    job_info["metadata"] = {"dataset_name": ds_name, "dataset_description": ds_description}
-
                     #remove temp file
                     os.remove(file_full_name)
 
-            elif (source == "job"):
-                # To Do -> use source and auth info to retrieve data source
-                logging.info(" pistis_job_template#retrieve: Retrievind data from job ... ")       
-            elif (is_valid_url(source)):
-                # To Do -> use source and auth info to retrieve data source
-                logging.info(" pistis_job_template#retrieve: Retrievind data from url (data path)" + str(source)) 
+                elif (source == "job"):
+                    # To Do -> use source and auth info to retrieve data source
+                    logging.info(" pistis_job_template#retrieve: Retrievind data internally from job ... ")       
+                elif (is_valid_url(source)):
+                    # To Do -> use source and auth info to retrieve data source
+                    logging.info(" pistis_job_template#retrieve: Retrievind data from url (data path)" + str(source)) 
 
+
+                # Update metadata using wf inputs
+                job_info["metadata"] = {"dataset_name": ds_name, "dataset_description": ds_description}
+                
             return job_info
         
         except Exception as e:
