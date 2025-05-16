@@ -184,7 +184,12 @@ def pistis_job_template():
         pattern = r'_jc.*?_jc'
 
         # Remove the matched substring
-        return re.sub(pattern, '', ds_name)    
+        final_name = re.sub(pattern, '', ds_name) 
+
+        # Update file extension        
+        #final_name = re.sub(r'\.[^.]+$', extension, temp_name)
+        #logging.info(" ### format_orginal_ds_name: final name is " + final_name)
+        return final_name  
         
     def add_dataset_to_factory_data_storage(source, uuid, bearer_token):
         logging.info(" ### Adding dataset to Factory Data Storage using source: " + source)
@@ -197,19 +202,20 @@ def pistis_job_template():
             object_name = s3_list[index + 1]
             logging.info(" ### Getting S3 Object with bucket = " + bucket_name + " and object_name = " + object_name)
             file = client.get_object(bucket_name,object_name)
-            res_file = "proc_" + object_name
-            tokens = object_name.split('.')
-            extension = "." + tokens[-1]
+            #res_file = "proc_" + re.sub(r'\.[^.]+$', raw_extension, object_name)
+            #tokens = object_name.split('.')
+            #extension = "." + tokens[-1]
 
-            logging.info(" ### Checking dataset extension =>  " + extension)
-
-            if (extension.lower() != CSV):
-                transform_ds_format(file, res_file, extension.lower(), CSV)
-            else:
-                res_file = file    
+            #logging.info(" ### Checking dataset extension =>  " + extension)
+            
+            #if (extension.lower() != raw_extension):
+            #    transform_ds_format(file, res_file, extension.lower(), raw_extension)
+            #else:
+            #    res_file = file    
 
             files=[
-                   ('file',(object_name, res_file,'rb'))
+                   #('file',(re.sub(r'\.[^.]+$', '', object_name), res_file,'rb'))
+                   ('file',(object_name, file,'rb'))
                 ]
 
         payload = {}
@@ -472,19 +478,27 @@ def pistis_job_template():
 
     def convert_df_to_file (df, file, format):
 
-        logging.info(" ### pistis_job_template#transform_to_csv: Converting dataset to  " + format)
+        logging.info(" ### convert_df_to_file: Converting dataset to  " + format)
+        print(df.to_string())
+
         if (format.lower() == XML):
+                logging.info(" ### convert_df_to_file: Formatting to XML ... ")
                 df.to_xml(file)
         elif (format.lower() == XLSX):
+                logging.info(" ### convert_df_to_file: Formatting to XLSX ... ")
                 df.to_excel(file, index=False)
         elif (format.lower() == JSON):
+                logging.info(" ### convert_df_to_file: Formatting to JSON ... ")
                 df.to_json(file, orient='records', lines=True)
         elif (format.lower() == CSV):
+                logging.info(" ### convert_df_to_file: Formatting to CSV ... ")
                 df.to_csv(file, index=False)
         elif (format.lower() == PARQUET):
+                logging.info(" ### convert_df_to_file: Formatting to Parquet ... ")
                 df.to_parquet(file)
         elif (format.lower() == TSV):
-                df.to_csv(file, sep='\t', index=False)            
+                logging.info(" ### convert_df_to_file: Formatting to TSV ... ")
+                df.to_csv(file, sep='\t', index=False)                  
 
     def detect_encoding(file_path):
         with open(file_path, 'rb') as f:
@@ -502,10 +516,10 @@ def pistis_job_template():
 
         logging.info(" ### File " + file_path + " has been converted to UTF-8 encoding.")
 
-    def transform_ds_format(file, converted_file, output_format, extension):
+    def transform_ds_format(file, converted_file, extension, output_format):
         
         #logging.info(" ### pistis_job_template#transform_to_csv: Evaluating file format for conversion to CSV ")
-        logging.info(" ### pistis_job_template#transform_to_csv: Converting file from " + output_format + " to " + extension)
+        logging.info(" ### pistis_job_template#transform_to_csv: Converting file from " + extension + " to " + output_format)
         if extension.lower() == JSON:           
            with open(file, encoding='utf-8') as inputfile:
               df = pd.read_json(inputfile)
@@ -547,7 +561,7 @@ def pistis_job_template():
            # Read the TSV file into a DataFrame
            df = pd.read_csv(file)   
 
-        convert_df_to_file(df, converted_file, output_format)   
+        convert_df_to_file(df, converted_file, output_format.strip())   
 
 
     @task()
@@ -602,8 +616,8 @@ def pistis_job_template():
 
                     # Check file format is: json, csv, tsv or parquet
                     if file_full_name.lower().endswith(tuple(prefixes)):
-                        transform_ds_format(file_full_name, conv_file, CSV , extension)
-                        with open(conv_file, "rb") as file:
+                        #transform_ds_format(file_full_name, conv_file, extension, CSV)
+                        with open(file_full_name, "rb") as file:
                             file_content = file.read()
                             file_base64_string = b64encode(file_content).decode('utf-8')
                             decoded_data = decodebytes(file_base64_string.encode("utf-8"))
@@ -611,7 +625,7 @@ def pistis_job_template():
                         raise Exception("File format not supported. Formats supported are: CSV, Json, Xml, TSV, Xlsx and Parquet")
                         
                     # Put  data in the bucket
-                    result = client.put_object(MINIO_BUCKET_NAME, file_name + "_jc" + root_run_id + "_jc" + CSV, data=BytesIO(decoded_data), length=len(decoded_data)) 
+                    result = client.put_object(MINIO_BUCKET_NAME, file_name + "_jc" + root_run_id + "_jc" + extension, data=BytesIO(decoded_data), length=len(decoded_data)) 
                     
                     # update source using minio uri
                     job_info["source"] = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
@@ -947,8 +961,10 @@ def pistis_job_template():
         bearer_token = job_info["bearer_token"]
         ds_path_url = source
         uuid = 0
+        extension = CSV
 
         try:
+            
             # Check if lineage tracking is needed
             #if (lineage_tracking or (destination_type == "factory_storage")):
             if requires_access_policy_notification(service_endpoint):
