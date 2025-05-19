@@ -479,7 +479,7 @@ def pistis_job_template():
     def convert_df_to_file (df, file, format):
 
         logging.info(" ### convert_df_to_file: Converting dataset to  " + format)
-        print(df.to_string())
+        #print(df.to_string())
 
         if (format.lower() == XML):
                 logging.info(" ### convert_df_to_file: Formatting to XML ... ")
