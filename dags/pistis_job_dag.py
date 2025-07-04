@@ -300,9 +300,9 @@ def pistis_job_template():
     def getFileExtension(source):
        s3_path = source[len("s3://"):]
        s3_list = s3_path.split('/')
-       object_name = s3_list[1]
+       object_name = s3_list[len(s3_list)-1]
        extension = os.path.splitext(object_name)[1]
-       return extension.upper()
+       return extension.upper()[1:]
 
     def generate_dataset_json_ld(source, metadata, uuid_url, extension):
        
