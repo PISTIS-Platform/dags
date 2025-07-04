@@ -297,7 +297,13 @@ def pistis_job_template():
        persist_in_minio(json_wf, wf_s3_endpoint)
 
 
-    def generate_dataset_json_ld(source, metadata, uuid_url):
+    def getFileExtension(source):
+       s3_path = source[len("s3://"):]
+       s3_list = s3_path.split('/')
+       object_name = s3_list[1]
+       return os.path.splitext(object_name)
+
+    def generate_dataset_json_ld(source, metadata, uuid_url, extension):
        
        logging.info(" pistis_job_template#generate_dataset_json_ld: Starting json ld generation ... ") 
        evaluable_attrs = ['dataset_name','dataset_description', 'insights'] ## Add  meta fields to be evaluated
@@ -340,14 +346,15 @@ def pistis_job_template():
                        "file_name": raw_name,
                        "accessURL": uuid_url,
                        "ds_byte_size": str(stat.size),
-                       "insights": insightsURL
+                       "insights": insightsURL,
+                       "file_type": extension
                       }
        template = json.loads(DATASET_JSON_LD_TEMPLATE)
        logging.info(" pistis_job_template#generate_dataset_json_ld: TEMPLATE GENERATED = " + str(template)) 
        return jsoninja.replace(template, replacements)
 
  
-    def generate_json_ld_data_distribution(access_url):      
+    def generate_json_ld_data_distribution(access_url, extension):      
        logging.info(" pistis_job_template#generate_dataset_json_ld: Starting json ld generation ... ") 
        
        ds_title = "Additional Distribution - "                  
@@ -356,7 +363,8 @@ def pistis_job_template():
        replacements = {
                        "data_dist_name": ds_title + date,
                        "data_dist_accessURL": access_url,
-                       "date_issued": date
+                       "date_issued": date,
+                       "file_type": extension
                       }
        template = json.loads(DATASET_JSON_LD_DATA_DISTRIBUTION_TEMPLATE)
        logging.info(" pistis_job_template#generate_json_ld_data_distribution: TEMPLATE GENERATED = " + str(template)) 
@@ -479,7 +487,7 @@ def pistis_job_template():
     def convert_df_to_file (df, file, format):
 
         logging.info(" ### convert_df_to_file: Converting dataset to  " + format)
-        #print(df.to_string())
+        print(df.to_string())
 
         if (format.lower() == XML):
                 logging.info(" ### convert_df_to_file: Formatting to XML ... ")
@@ -961,7 +969,7 @@ def pistis_job_template():
         bearer_token = job_info["bearer_token"]
         ds_path_url = source
         uuid = 0
-        extension = CSV
+        extension = getFileExtension(source)
 
         try:
             
@@ -977,7 +985,7 @@ def pistis_job_template():
                 register_default_access_policy(uuid, metadata["dataset_name"], metadata["dataset_description"], bearer_token)
 
                 # Store metadata in factory data catalogue using uuid got it from data storage
-                ds_json_ld = generate_dataset_json_ld(source, metadata, ds_path_url)
+                ds_json_ld = generate_dataset_json_ld(source, metadata, ds_path_url, extension)
                 logging.info(" pistis_job_template#requires_access_policy_notification: Persiting metadata in Factory Data Catalogue using UUID = " + str(uuid))
                 catalogue_ds_uuid = add_dataset_to_factory_data_catalogue(ds_json_ld, bearer_token)
                 logging.info(" pistis_job_template#requires_access_policy_notification: Persited with UUID " + str(catalogue_ds_uuid))
@@ -1015,7 +1023,7 @@ def pistis_job_template():
                     new_uuid = add_dataset_to_factory_data_storage(source, job_info["data_uuid"], bearer_token)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Added DS with UUID = " + str(new_uuid))
                     accessURL = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(new_uuid)
-                    json_ld = generate_json_ld_data_distribution(accessURL)
+                    json_ld = generate_json_ld_data_distribution(accessURL, extension)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Adding data distribution ... ")           
                     add_distribution_to_data_catalogue(job_info["uuid"], json_ld, bearer_token)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Data distribution added ... ")
