@@ -912,24 +912,24 @@ def pistis_job_template():
                     template_field_key = meta_field_list[0]
                     meta_field_path = meta_field_list[1]
                     
-                    if (meta_field_path.strip().lower() != "json"):
-                        json_res_val = res.json()
-                        field_list = metadata_field_path.split('.')
-                                
-                        for field in field_list:
-                            json_res_val = json_res_val[field]
-
-                    elif (meta_field_path.strip().lower() == "html"):  
+                    if (meta_field_path.strip().lower() == "html"):  
                         res_val = res.content.decode('utf-8')
                         json_s3_name = endpoint[len("http://"):]
                         s3_full_name = "s3://" + MINIO_BUCKET_NAME + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".html"
                         json_res_val = persist_in_minio(res_val, s3_full_name)   
                     
-                    else:
+                    elif (meta_field_path.strip().lower() == "json"):
                         json_res_val = res.json()
                         json_s3_name = endpoint[len("http://"):]
                         s3_full_name = "s3://" + MINIO_BUCKET_NAME + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".json"
                         json_res_val = persist_in_minio(json_res_val, s3_full_name)
+
+                    else: 
+                        json_res_val = res.json()
+                        field_list = metadata_field_path.split('.')
+                                
+                        for field in field_list:
+                            json_res_val = json_res_val[field]    
 
                 #object_url = persist_in_minio(json_res_val, job_info["metadata"])
                 dict = { template_field_key: json_res_val }
