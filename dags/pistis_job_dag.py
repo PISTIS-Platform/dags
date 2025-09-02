@@ -904,7 +904,7 @@ def pistis_job_template():
             # TO-DO update metadata with last version of metadara
             metadata_field_path = job_info["response_metadata_field_path"]
             if (not metadata_field_path == "") and (not metadata_field_path.isspace()) and (metadata_field_path.strip().lower() != "none"): 
-                json_res_val = res.json()
+                #json_res_val = res.json()
                 
                 # TO-DO support metadata fiels path as list ([key:path;key2:path; ...])
                 meta_field_list = metadata_field_path.split(':')
@@ -913,12 +913,20 @@ def pistis_job_template():
                     meta_field_path = meta_field_list[1]
                     
                     if (meta_field_path.strip().lower() != "json"):
+                        json_res_val = res.json()
                         field_list = metadata_field_path.split('.')
                                 
                         for field in field_list:
                             json_res_val = json_res_val[field]
-                        
+
+                    elif (meta_field_path.strip().lower() == "html"):  
+                        res_val = res.content.decode('utf-8')
+                        json_s3_name = endpoint[len("http://"):]
+                        s3_full_name = "s3://" + MINIO_BUCKET_NAME + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".html"
+                        json_res_val = persist_in_minio(res_val, s3_full_name)   
+                    
                     else:
+                        json_res_val = res.json()
                         json_s3_name = endpoint[len("http://"):]
                         s3_full_name = "s3://" + MINIO_BUCKET_NAME + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".json"
                         json_res_val = persist_in_minio(json_res_val, s3_full_name)
