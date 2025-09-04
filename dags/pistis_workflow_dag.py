@@ -399,9 +399,9 @@ def pistis_workflow_template():
     )
 
     get_job_from_workflow() >> generate_conf_for_job_dag() >> trigger_pistis_job >> get_current_workflow() >> check_pending_jobs()
-    check_pending_jobs.set_upstream(check_pending_jobs) >> self_triggering_pistis_workflow
-    check_pending_jobs.set_upstream(check_pending_jobs) >> build_periodic_workflow() >> check_periodicity_type() >> [triggering_pistis_workflow_hourly, triggering_pistis_workflow_daily, triggering_pistis_workflow_monthly]
-    check_pending_jobs.set_upstream(check_pending_jobs) >> skip_self_triggering
+    check_pending_jobs.set_upstream(get_current_workflow) >> self_triggering_pistis_workflow
+    check_pending_jobs.set_upstream(get_current_workflow) >> build_periodic_workflow() >> check_periodicity_type() >> [triggering_pistis_workflow_hourly, triggering_pistis_workflow_daily, triggering_pistis_workflow_monthly]
+    check_pending_jobs.set_upstream(get_current_workflow) >> skip_self_triggering
     #get_job_from_workflow() >> generate_conf_for_job_dag() >> trigger_pistis_job >> get_current_workflow() >> check_pending_jobs() >> [self_triggering_pistis_workflow, build_periodic_workflow() >> check_periodicity_type() >> [triggering_pistis_workflow_hourly, triggering_pistis_workflow_daily, triggering_pistis_workflow_monthly], skip_self_triggering]
 
         
