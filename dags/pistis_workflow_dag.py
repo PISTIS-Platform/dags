@@ -146,14 +146,9 @@ def pistis_workflow_template():
         context = get_current_context()
         #wf = context["params"]["workflow"]
         wf = context["params"]["workflow"]
-        raw_wf = context["params"]["raw_wf"]
         wf_size = len(wf)
         logging.info("### pistis_workflow_template.workflow: wf = "+ str(wf) + " type = " + str(type(wf)))
         if (wf_size > 0):
-           
-           if (raw_wf is None):
-               context["params"]["raw_wf"] = wf[:]
-
            job = wf[0]
            #Variable.update(key="current_job", value=job['job_name'])
            logging.info("### pistis_workflow_template.workflow: currrent_job = "+ job['job_name'])
