@@ -310,12 +310,12 @@ def pistis_workflow_template():
             return "self_triggering_pistis_workflow"
         else:
             if (periodicity):
-                return "periodic_tg"
+                return "periodic_group.build_periodic_workflow"
             else: 
                 return "skip_self_triggering"
 
     @task_group(group_id='periodic_group')
-    def periodic_tg():    
+    def periodic_group():    
         
         @task
         def build_periodic_workflow():
