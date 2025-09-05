@@ -128,7 +128,7 @@ from airflow.models import Variable
         "dataset_description": Param("Pistis DataSet", type="string"),
         "bearer_token": Param("Access Token", type="string"),
         "encryption": Param("Encryption Flag", type="string"),
-        "periodicity": Param("Encryption Flag", type="string")
+        "periodicity": Param("", type="string")
     }
 )
 
@@ -310,12 +310,12 @@ def pistis_workflow_template():
             return "self_triggering_pistis_workflow"
         else:
             if (periodicity):
-                return "build_periodic_workflow"
+                return "periodic_tg"
             else: 
                 return "skip_self_triggering"
 
     @task_group(group_id='periodic_group')
-    def tg():    
+    def periodic_tg():    
         
         @task
         def build_periodic_workflow():
@@ -407,7 +407,7 @@ def pistis_workflow_template():
     #check_pending_jobs.set_upstream(get_current_workflow) >> self_triggering_pistis_workflow
     #check_pending_jobs.set_upstream(get_current_workflow) >> build_periodic_workflow() >> check_periodicity_type() >> [triggering_pistis_workflow_hourly, triggering_pistis_workflow_daily, triggering_pistis_workflow_monthly]
     #check_pending_jobs.set_upstream(get_current_workflow) >> skip_self_triggering
-    get_job_from_workflow() >> generate_conf_for_job_dag() >> trigger_pistis_job >> get_current_workflow() >> check_pending_jobs() >> [self_triggering_pistis_workflow, tg(), skip_self_triggering]
+    get_job_from_workflow() >> generate_conf_for_job_dag() >> trigger_pistis_job >> get_current_workflow() >> check_pending_jobs() >> [self_triggering_pistis_workflow, periodic_tg(), skip_self_triggering]
 
         
 pistis_workflow_template()
