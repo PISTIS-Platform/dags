@@ -38,7 +38,8 @@ from airflow.models import Variable
                 "method": "get",
                 "destination_type": "memory",
                 "lineage_tracking": "true",
-                "uuid": "0"
+                "uuid": "0",
+                "data_uuid": "0"
             }],
             schema = {
                 "workflow": {
@@ -108,8 +109,10 @@ from airflow.models import Variable
                             },
                             "uuid": {
                                 "type": "string"
-                            }
-                            
+                            },
+                            "data_uuid": {
+                                "type": "string"
+                            }    
                         },
                         "required": [
                             "source",
@@ -336,8 +339,10 @@ def pistis_workflow_template():
                     ti = dr_list[0].get_task_instance(task_id='storage')
                     task_result = ti.xcom_pull(task_ids='storage', key='return_value') 
                     # update metadata using previous job metadata
-                    wf[0]["uuid"] = task_result['uuid']
-                    wf[0]["data_uuid"] = task_result['data_uuid']
+                    logging.info("### pistis_workflow_template.build_periodic_workflow(): Last task storage results = "+ str(task_result))
+                    logging.info("### pistis_workflow_template.build_periodic_workflow(): WF[0] = " + str(wf[0])) 
+                    wf[0]['uuid'] = task_result['uuid']
+                    wf[0]['data_uuid'] = task_result['data_uuid']
 
             return wf        
 
