@@ -132,7 +132,106 @@ from airflow.models import Variable
         "bearer_token": Param("Access Token", type="string"),
         "encryption": Param("Encryption Flag", type="string"),
         "periodicity": Param("", type="string"),
-        "raw_wf": Param({"key": "value"}, type=["object", "null"])
+        "raw_wf": Param(
+            [{
+                "prev_run": "000",
+                "root_dag_run": "000",
+                "job_name": "test_job",
+                "source": "http://dataset.pistis",
+                "input_data": [],
+                "content-type": "application/json",
+                "endpoint": "http://",
+                "method": "get",
+                "destination_type": "memory",
+                "lineage_tracking": "true",
+                "uuid": "0",
+                "data_uuid": "0"
+            }],
+            schema = {
+                "workflow": {
+                    "type": "array",
+                    "minItems": 0,
+                    "items": {                        
+                        "type": "object",
+                        "properties": {
+                            "prev_run": {
+                                "type": "string"
+                            },
+                            "root_dag_run": {
+                                "type": "string"
+                            }, 
+                            "wf_results_id": {
+                                "type": "string"
+                            }, 
+                            "job_name": {
+                                "type": "string"
+                            },
+                            "content-type": {
+                                "type": "string"
+                            },    
+                            "source": {
+                                "type": "string",
+                                "pattern": "^(?:https?://|ftp://|none|workflow)"
+                            },
+                            "metadata": {
+                                "type": "object"
+                            },
+                            "endpoint": {
+                                "type": "string",
+                                "format": "uri",
+                                "pattern": "^(https?|wss?|ftp)://"
+                            },
+                            "input_data": {
+                                "type": "array",
+                                "minItems": 0,
+                                "items": {
+                                "type": "object",
+                                "properties": {
+                                        "name": {"type": "string"},
+                                        "value": {"type": "string"}
+                                    },
+                                    "required": [
+                                        "name",
+                                        "value"
+                                    ]
+                                }
+                            },
+                            "method": {
+                                "type": "string",
+                                "enum": ["get", "post", "put", "delete"]
+                            },
+                            "destination_type": {
+                                "type": "string",
+                                "enum": ["memory", "factory_storage", "nifi"]
+                            },
+                            "response_dataset_field_path": {
+                                "type": "string"
+                            },
+                            "response_metadata_field_path": {
+                                "type": "string"
+                            },
+                            "lineage_tracking": {
+                                "type": "boolean"
+                            },
+                            "uuid": {
+                                "type": "string"
+                            },
+                            "data_uuid": {
+                                "type": "string"
+                            }    
+                        },
+                        "required": [
+                            "source",
+                            "endpoint",
+                            "input_data",
+                            "method",
+                            "destination_type",
+                            "content-type"
+                        ]
+                    }
+                }    
+            }    
+        )
     }
 )
 
