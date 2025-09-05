@@ -1074,6 +1074,13 @@ def pistis_job_template():
 
             # Update JSON workflow resukts 
             if (last_job):
+                dr_list = DagRun.find(dag_id="pistis_workflow_template", run_id=root_run_id)
+                # Retrieve wf raw data using wf param dataset and update them over job source
+                if (len(dr_list) > 0):
+                    raw_wf = dr_list[0].conf['raw_wf']
+                    raw_wf[0]['uuid'] = job_info["uuid"]
+                    raw_wf[0]['data_uuid'] = job_info["data_uuid"]
+                    
                 ds_catalogue_url = {'id': job_info["uuid"]} # DATA_CATALOGUE_URL + "/datasets/" + job_info["uuid"]
                 wf_results = { "runId": wf_results_id, "status": "finished", "catalogue_dataset_endpoint": ds_catalogue_url }
                 wf_s3_endpoint =  "s3://" + MINIO_BUCKET_NAME + "/" + root_run_id + ".json"
