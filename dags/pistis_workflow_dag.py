@@ -131,7 +131,8 @@ from airflow.models import Variable
         "dataset_description": Param("Pistis DataSet", type="string"),
         "bearer_token": Param("Access Token", type="string"),
         "encryption": Param("Encryption Flag", type="string"),
-        "periodicity": Param("", type="string")
+        "periodicity": Param("", type="string"),
+        "raw_wf": Param({"key": "value"}, type=["object", "null"])
     }
 )
 
@@ -145,9 +146,14 @@ def pistis_workflow_template():
         context = get_current_context()
         #wf = context["params"]["workflow"]
         wf = context["params"]["workflow"]
+        raw_wf = context["params"]["raw_wf"]
         wf_size = len(wf)
         logging.info("### pistis_workflow_template.workflow: wf = "+ str(wf) + " type = " + str(type(wf)))
         if (wf_size > 0):
+           
+           if (raw_wf is None):
+               raw_wf = wf
+
            job = wf[0]
            #Variable.update(key="current_job", value=job['job_name'])
            logging.info("### pistis_workflow_template.workflow: currrent_job = "+ job['job_name'])
@@ -332,7 +338,7 @@ def pistis_workflow_template():
             if (len(dr_list) > 0):
                 #job_info["source"] = dr_list[0].conf['dataset']
                 
-                wf = dr_list[0].conf['workflow']
+                wf = dr_list[0].conf['raw_wf']
                 # Retrieve uuid and data_uuid from last job
                 dr_list = DagRun.find(dag_id="pistis_job_template", run_id=trigger_run_id)
                 if (len(dr_list) > 0):
