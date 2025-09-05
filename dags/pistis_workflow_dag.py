@@ -152,7 +152,7 @@ def pistis_workflow_template():
         if (wf_size > 0):
            
            if (raw_wf is None):
-               raw_wf = wf
+               raw_wf = wf[:]
 
            job = wf[0]
            #Variable.update(key="current_job", value=job['job_name'])
