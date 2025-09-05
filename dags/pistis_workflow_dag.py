@@ -434,17 +434,17 @@ def pistis_workflow_template():
                 
                 wf = dr_list[0].conf['raw_wf']
                 # Retrieve uuid and data_uuid from last job
-                dr_list = DagRun.find(dag_id="pistis_job_template", run_id=trigger_run_id)
-                logging.info("pistis_workflow_template#build_periodic_workflow: Dag Run with id = " + str(trigger_run_id) + " => " + str(dr_list))
-                if (len(dr_list) > 0):
-                    ti = dr_list[0].get_task_instance(task_id='storage')
-                    logging.info("pistis_workflow_template#build_periodic_workflow: Dag Task Instance = " + str(ti))
-                    task_result = ti.xcom_pull(task_ids='storage', key='return_value') 
+                #dr_list = DagRun.find(dag_id="pistis_job_template", run_id=trigger_run_id)
+                #logging.info("pistis_workflow_template#build_periodic_workflow: Dag Run with id = " + str(trigger_run_id) + " => " + str(dr_list))
+                #if (len(dr_list) > 0):
+                #    ti = dr_list[0].get_task_instance(task_id='storage')
+                #    logging.info("pistis_workflow_template#build_periodic_workflow: Dag Task Instance = " + str(ti))
+                #    task_result = ti.xcom_pull(task_ids='storage', key='return_value') 
                     # update metadata using previous job metadata
-                    logging.info("### pistis_workflow_template.build_periodic_workflow(): Last task storage results = "+ str(task_result))
-                    logging.info("### pistis_workflow_template.build_periodic_workflow(): WF[0] = " + str(wf[0])) 
-                    wf[0]['uuid'] = task_result['uuid']
-                    wf[0]['data_uuid'] = task_result['data_uuid']
+                #    logging.info("### pistis_workflow_template.build_periodic_workflow(): Last task storage results = "+ str(task_result))
+                #    logging.info("### pistis_workflow_template.build_periodic_workflow(): WF[0] = " + str(wf[0])) 
+                #    wf[0]['uuid'] = task_result['uuid']
+                #    wf[0]['data_uuid'] = task_result['data_uuid']
 
             return wf        
 
