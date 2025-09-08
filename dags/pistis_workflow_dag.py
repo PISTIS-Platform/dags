@@ -454,17 +454,17 @@ def pistis_workflow_template():
             periodicity = context["params"]["periodicity"]
 
             if (periodicity == "hourly"):
-                return "triggering_pistis_workflow_hourly"
+                return "periodic_group.triggering_pistis_workflow_hourly"
             elif (periodicity == "daily"):
-                return "triggering_pistis_workflow_daily"
+                return "periodic_group.triggering_pistis_workflow_daily"
             elif (periodicity == "montly"):
-                return "triggering_pistis_workflow_montly"   
+                return "periodic_group.triggering_pistis_workflow_montly"   
 
         # Self-trigger & Looping in DAG to execute pending jobs
         triggering_pistis_workflow_hourly = TriggerDagRunOperator(
             task_id='triggering_pistis_workflow_hourly',
             trigger_dag_id='pistis_workflow_hourly',
-            conf={"workflow": "{{ ti.xcom_pull(task_ids='build_periodic_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.bearer_token }}" },
+            conf={"workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_periodic_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.bearer_token }}" },
             wait_for_completion=False,
             poke_interval=10 
             #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
@@ -475,7 +475,7 @@ def pistis_workflow_template():
         triggering_pistis_workflow_daily = TriggerDagRunOperator(
             task_id='triggering_pistis_workflow_daily',
             trigger_dag_id='pistis_workflow_daily',
-            conf={"workflow": "{{ ti.xcom_pull(task_ids='build_periodic_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.bearer_token }}" },
+            conf={"workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_periodic_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.bearer_token }}" },
             wait_for_completion=False,
             poke_interval=10 
             #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
@@ -486,7 +486,7 @@ def pistis_workflow_template():
         triggering_pistis_workflow_monthly = TriggerDagRunOperator(
             task_id='triggering_pistis_workflow_monthly',
             trigger_dag_id='pistis_workflow_monthly',
-            conf={"workflow": "{{ ti.xcom_pull(task_ids='build_periodic_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.bearer_token }}" },
+            conf={"workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_periodic_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.bearer_token }}" },
             wait_for_completion=False,
             poke_interval=10 
             #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
