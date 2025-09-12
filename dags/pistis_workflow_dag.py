@@ -485,7 +485,7 @@ def pistis_workflow_template():
         triggering_pistis_periodic_workflow = TriggerDagRunOperator(
             task_id='triggering_pistis_periodic_workflow',
             trigger_dag_id='pistis_periodic_workflow',
-            conf={ "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value') }}" },
+            conf="{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value') }}",
             wait_for_completion=False,
             poke_interval=10 
             #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
