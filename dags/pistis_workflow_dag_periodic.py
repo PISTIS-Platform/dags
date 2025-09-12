@@ -314,7 +314,7 @@ def pistis_periodic_workflow():
             return "self_triggering_pistis_workflow"
         else:
             if (periodicity):
-                return "periodic_group.build_periodic_workflow"
+                return "periodic_group.build_conf"
             else: 
                 return "skip_self_triggering"
             
