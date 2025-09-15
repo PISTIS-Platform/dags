@@ -334,6 +334,9 @@ def pistis_periodic_workflow():
             ## Add access token
             conf["access_token"] = access_token 
 
+            ## Add periodicity
+            conf["periodicity"] = periodicity
+
             dr_list = DagRun.find(dag_id="pistis_workflow_template", run_id=root_run_id)
             # Add wf and raw_wf: Retrieve initial root wf raw data
             if (len(dr_list) > 0):
@@ -364,7 +367,7 @@ def pistis_periodic_workflow():
         triggering_pistis_periodic_workflow = TriggerDagRunOperator(
             task_id='triggering_pistis_periodic_workflow',
             trigger_dag_id='pistis_periodic_workflow',
-            conf= json.dumps("{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value') }}"),
+            conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').periodicity }}", "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').workflow }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').access_token }}", "logical_date": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').logical_date }}" },
             wait_for_completion=False,
             poke_interval=10 
             #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
