@@ -39,7 +39,8 @@ from airflow.models import Variable
                 "method": "get",
                 "destination_type": "memory",
                 "lineage_tracking": "true",
-                "uuid": "0"
+                "uuid": "0",
+                "data_uuid": "0"
             }],
             schema = {
                 "workflow": {
@@ -109,8 +110,10 @@ from airflow.models import Variable
                             },
                             "uuid": {
                                 "type": "string"
-                            }
-                            
+                            },
+                            "data_uuid": {
+                                "type": "string"
+                            }    
                         },
                         "required": [
                             "source",
@@ -127,7 +130,109 @@ from airflow.models import Variable
         "dataset": Param({"key": "value"}, type=["object", "null"]),
         "dataset_name": Param("Pistis DataSet", type="string"),
         "dataset_description": Param("Pistis DataSet", type="string"),
-        "bearer_token": Param("Access Token", type="string")
+        "bearer_token": Param("Access Token", type="string"),
+        "encryption": Param("Encryption Flag", type="string"),
+        "periodicity": Param("", type="string"),
+        "raw_wf": Param(
+            [{
+                "prev_run": "000",
+                "root_dag_run": "000",
+                "job_name": "test_job",
+                "source": "http://dataset.pistis",
+                "input_data": [],
+                "content-type": "application/json",
+                "endpoint": "http://",
+                "method": "get",
+                "destination_type": "memory",
+                "lineage_tracking": "true",
+                "uuid": "0",
+                "data_uuid": "0"
+            }],
+            schema = {
+                "workflow": {
+                    "type": "array",
+                    "minItems": 0,
+                    "items": {                        
+                        "type": "object",
+                        "properties": {
+                            "prev_run": {
+                                "type": "string"
+                            },
+                            "root_dag_run": {
+                                "type": "string"
+                            }, 
+                            "wf_results_id": {
+                                "type": "string"
+                            }, 
+                            "job_name": {
+                                "type": "string"
+                            },
+                            "content-type": {
+                                "type": "string"
+                            },    
+                            "source": {
+                                "type": "string",
+                                "pattern": "^(?:https?://|ftp://|none|workflow)"
+                            },
+                            "metadata": {
+                                "type": "object"
+                            },
+                            "endpoint": {
+                                "type": "string",
+                                "format": "uri",
+                                "pattern": "^(https?|wss?|ftp)://"
+                            },
+                            "input_data": {
+                                "type": "array",
+                                "minItems": 0,
+                                "items": {
+                                "type": "object",
+                                "properties": {
+                                        "name": {"type": "string"},
+                                        "value": {"type": "string"}
+                                    },
+                                    "required": [
+                                        "name",
+                                        "value"
+                                    ]
+                                }
+                            },
+                            "method": {
+                                "type": "string",
+                                "enum": ["get", "post", "put", "delete"]
+                            },
+                            "destination_type": {
+                                "type": "string",
+                                "enum": ["memory", "factory_storage", "nifi"]
+                            },
+                            "response_dataset_field_path": {
+                                "type": "string"
+                            },
+                            "response_metadata_field_path": {
+                                "type": "string"
+                            },
+                            "lineage_tracking": {
+                                "type": "boolean"
+                            },
+                            "uuid": {
+                                "type": "string"
+                            },
+                            "data_uuid": {
+                                "type": "string"
+                            }    
+                        },
+                        "required": [
+                            "source",
+                            "endpoint",
+                            "input_data",
+                            "method",
+                            "destination_type",
+                            "content-type"
+                        ]
+                    }
+                }    
+            }    
+        )
     }
 )
 
@@ -367,7 +472,7 @@ def pistis_periodic_workflow():
         triggering_pistis_periodic_workflow = TriggerDagRunOperator(
             task_id='triggering_pistis_periodic_workflow',
             trigger_dag_id='pistis_periodic_workflow',
-            conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['periodicity'] }}", "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['workflow'] }}", "raw_wf": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['raw_wf'] }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value')['access_token'] }}", "logical_date": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['logical_date'] }}" },
+            conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['periodicity'] }}", "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['workflow'] }}", "raw_wf": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['raw_wf'] }}", "bearer_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value')['access_token'] }}", "logical_date": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['logical_date'] }}" },
             wait_for_completion=False,
             poke_interval=10 
             #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
@@ -380,7 +485,7 @@ def pistis_periodic_workflow():
     self_triggering_pistis_workflow = TriggerDagRunOperator(
         task_id='self_triggering_pistis_workflow',
         trigger_dag_id='pistis_periodic_workflow',
-        conf={"periodicity": "{{ ti.xcom_pull(task_ids='get_periodicity', key='return_value') }}", "workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.bearer_token }}" },
+        conf={"periodicity": "{{ ti.xcom_pull(task_ids='get_periodicity', key='return_value') }}", "workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }}", "bearer_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.bearer_token }}" },
         wait_for_completion=True,
         poke_interval=10 
         #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
