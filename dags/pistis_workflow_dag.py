@@ -501,7 +501,7 @@ def pistis_workflow_template():
             task_id='triggering_pistis_periodic_workflow',
             trigger_dag_id='pistis_periodic_workflow',
             #conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['periodicity'] }}", "workflow": clean_data("{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['workflow'] }}"), "raw_wf": [], "bearer_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value')['access_token'] }}", "logical_date": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['logical_date'] }}" },
-            conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['periodicity'] }}" },   
+            conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').periodicity }}" },   
             wait_for_completion=False,
             poke_interval=10 
             #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
