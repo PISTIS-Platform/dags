@@ -483,12 +483,19 @@ def pistis_workflow_template():
                 start_time = start_time + relativedelta(months=1)
             
             return start_time.isoformat()
+        
+        
+        def clean_for_json(obj):
+            if isinstance(obj, dict):
+                return {k: clean_for_json(v) for k, v in obj.items() if not isinstance(v, StrictUndefined)}
+            elif isinstance(obj, list):
+                return
 
         # Self-trigger & Looping in DAG to execute pending jobs
         triggering_pistis_periodic_workflow = TriggerDagRunOperator(
             task_id='triggering_pistis_periodic_workflow',
             trigger_dag_id='pistis_periodic_workflow',
-            conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['periodicity'] }}", "workflow": json.dumps("{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['workflow'] }}", default=lambda o: o.__dict__), "raw_wf": json.dumps("{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['raw_wf'] }}", default=lambda o: o.__dict__), "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value')['access_token'] }}", "logical_date": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['logical_date'] }}" },
+            conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['periodicity'] }}", "workflow": clean_for_json("{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['workflow'] }}"), "raw_wf": clean_for_json("{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['raw_wf'] }}"), "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value')['access_token'] }}", "logical_date": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value')['logical_date'] }}" },
             wait_for_completion=False,
             poke_interval=10 
             #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
