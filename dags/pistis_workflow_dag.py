@@ -470,7 +470,7 @@ def pistis_workflow_template():
             # Add logical_date
             conf["logical_date"] = setup_periodicity_time(periodicity)        
 
-            return conf
+            return json.loads(json.dumps(conf))
 
         def setup_periodicity_time(periodicity):
             
