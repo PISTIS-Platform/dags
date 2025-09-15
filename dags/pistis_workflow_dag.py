@@ -23,6 +23,7 @@ from airflow.operators.empty import EmptyOperator
 from airflow.models.dagrun import DagRun
 import logging
 from airflow.settings import json
+from jinja2 import StrictUndefined
 from airflow.models import Variable
 
 @dag(start_date=datetime(2023,1,1), schedule="@once", catchup=False, render_template_as_native_obj=True, params={
