@@ -57,7 +57,7 @@ now = pendulum.now()
                 "lineage_tracking": True,
                 "uuid": "0",
                 "data_uuid": "0",
-                "bearer_token": ""
+                "access_token": ""
             },
             schema =  {
                 "type": "object",
@@ -126,7 +126,7 @@ now = pendulum.now()
                     "data_uuid": {
                         "type": "string"
                     },
-                    "bearer_token": {
+                    "access_token": {
                         "type": "string"
                     }
                 },
@@ -191,7 +191,7 @@ def pistis_job_template():
         #logging.info(" ### format_orginal_ds_name: final name is " + final_name)
         return final_name  
         
-    def add_dataset_to_factory_data_storage(source, uuid, bearer_token):
+    def add_dataset_to_factory_data_storage(source, uuid, access_token):
         logging.info(" ### Adding dataset to Factory Data Storage using source: " + source)
         file=[]
         s3_path = source[len("s3://"):]
@@ -222,7 +222,7 @@ def pistis_job_template():
           
         #access_token = get_access_token()  
         headers = {
-                    "Authorization": "Bearer " + bearer_token # DATA_STORAGE_API_KEY
+                    "Authorization": "Bearer " + access_token # DATA_STORAGE_API_KEY
                   }
         if (uuid == "none"):
             endpoint = DATA_STORAGE_URL + "/api/files/create_file"
@@ -238,7 +238,7 @@ def pistis_job_template():
         json_res = res.json()
         return json_res['asset_uuid']
 
-    def add_dataset_to_factory_data_catalogue(ds_json_ld, bearer_token):
+    def add_dataset_to_factory_data_catalogue(ds_json_ld, access_token):
         # TO-DO define catalogue name as input
         logging.info(" ### Adding dataset to Factory Data Catalogue ... ")
 
@@ -247,7 +247,7 @@ def pistis_job_template():
             
         headers = {
                    "X-API-Key": DATA_CATALOGUE_API_KEY,
-                   #"Authorization": "Bearer " + bearer_token,
+                   #"Authorization": "Bearer " + access_token,
                    "Content-Type": "application/ld+json"
                   }
         endpoint = DATA_REPO_URL + "/catalogues/" + CATALOG_NAME + "/datasets"
@@ -408,14 +408,14 @@ def pistis_job_template():
        logging.info(" ### pistis_job_template#notify_access_policy  Response: " + str(res))
        return res 
     
-    def add_distribution_to_data_catalogue(uuid, ds_json_ld, bearer_token):
+    def add_distribution_to_data_catalogue(uuid, ds_json_ld, access_token):
        logging.info(" pistis_job_template#add_distribution_to_data_catalogue: Adding distribution to DS with UUID = " + str(uuid))
 
        payload = json.dumps(ds_json_ld)
             
        headers = {
                    "X-API-Key": DATA_CATALOGUE_API_KEY,
-                   #"Authorization": "Bearer " + bearer_token,
+                   #"Authorization": "Bearer " + access_token,
                    "Content-Type": "application/ld+json"
                   }
        endpoint = DATA_REPO_URL + "/datasets/" + uuid + "/distributions" 
@@ -442,7 +442,7 @@ def pistis_job_template():
             for item in data:
                 update_value(item, key_to_match, new_value)      
 
-    def update_metadata_in_data_catalogue(uuid, metadata, bearer_token):
+    def update_metadata_in_data_catalogue(uuid, metadata, access_token):
         # TO-DO define catalogue name as input
         logging.info(" pistis_job_template#update_metadata_in_data_catalogue: Updating dataset to Factory Data Catalogue with ID = " + uuid)
 
@@ -450,7 +450,7 @@ def pistis_job_template():
             
         headers = {
                    "X-API-Key": DATA_CATALOGUE_API_KEY,
-                   #"Authorization": "Bearer " + bearer_token,
+                   #"Authorization": "Bearer " + access_token,
                    "Content-Type": "application/json"
                   }
         endpoint = DATA_REPO_URL + "/datasets/" + uuid
@@ -464,7 +464,7 @@ def pistis_job_template():
         ds_json = res.json()
         for meta_field in metadata.keys():
            if (metadata[meta_field].startswith("s3:/")):
-               ds_uuid = add_dataset_to_factory_data_storage(metadata[meta_field], "none", bearer_token)
+               ds_uuid = add_dataset_to_factory_data_storage(metadata[meta_field], "none", access_token)
                metadata[meta_field] = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(ds_uuid)
            update_value(ds_json, meta_field, metadata[meta_field])  
 
@@ -472,7 +472,7 @@ def pistis_job_template():
             
         headers = {
                    "X-API-Key": DATA_CATALOGUE_API_KEY,
-                   #"Authorization": "Bearer " + bearer_token,
+                   #"Authorization": "Bearer " + access_token,
                    "Content-Type": "application/ld+json"
                   }
         endpoint = DATA_REPO_URL + "/datasets/" + uuid
@@ -804,7 +804,7 @@ def pistis_job_template():
         ctype=  job_info["content-type"]
         job_name = job_info["job_name"]
         wf_results_id = job_info['wf_results_id'] 
-        bearer_token = job_info['bearer_token'] 
+        access_token = job_info['access_token'] 
         
         # headers={"User-Agent": "Pistis", 
         #          "Accept": "*/*",
@@ -812,7 +812,7 @@ def pistis_job_template():
         
         headers = {
                     "Accept": ctype,
-                    "Authorization": "Bearer " + bearer_token 
+                    "Authorization": "Bearer " + access_token 
                   }
         
         #evaluable_attrs = ['file', 'metadata']
@@ -942,14 +942,14 @@ def pistis_job_template():
              raise Exception(" TASK => callService: " +  repr(e))
     
        
-    def register_default_access_policy(uuid, ds_name, ds_desc, bearer_token):
+    def register_default_access_policy(uuid, ds_name, ds_desc, access_token):
         logging.info("### pistis_job_template#register_default_access_policy: Registering default access policy ... ")
 
         ## Get Access Token
         #access_token = get_access_token()
 
         ## Call to IAM to notify access policy 
-        notify_access_policy(uuid, ds_name, ds_desc, bearer_token)   
+        notify_access_policy(uuid, ds_name, ds_desc, access_token)   
 
     def requires_add_data_distribution(service_endpoint):
         return ORCHESTRABLE_SERVICES[1] in service_endpoint
@@ -975,7 +975,7 @@ def pistis_job_template():
         service_endpoint = job_info["endpoint"]
         prev_run = job_info["prev_run"]
         last_job = job_info["is_last_job"]
-        bearer_token = job_info["bearer_token"]
+        access_token = job_info["access_token"]
         ds_path_url = source
         uuid = 0
         extension = getFileExtension(source)
@@ -987,16 +987,16 @@ def pistis_job_template():
             if requires_access_policy_notification(service_endpoint):
                 # Store data asset in factory storage
                 logging.info(" pistis_job_template#requires_access_policy_notification: Storing data in factory storage ... ")
-                uuid = add_dataset_to_factory_data_storage(source, "none", bearer_token)
+                uuid = add_dataset_to_factory_data_storage(source, "none", access_token)
                 ds_path_url = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(uuid)
 
                 # Notify to IAM the default access policy associated to the DS
-                register_default_access_policy(uuid, metadata["dataset_name"], metadata["dataset_description"], bearer_token)
+                register_default_access_policy(uuid, metadata["dataset_name"], metadata["dataset_description"], access_token)
 
                 # Store metadata in factory data catalogue using uuid got it from data storage
                 ds_json_ld = generate_dataset_json_ld(source, metadata, ds_path_url, extension)
                 logging.info(" pistis_job_template#requires_access_policy_notification: Persiting metadata in Factory Data Catalogue using UUID = " + str(uuid))
-                catalogue_ds_uuid = add_dataset_to_factory_data_catalogue(ds_json_ld, bearer_token)
+                catalogue_ds_uuid = add_dataset_to_factory_data_catalogue(ds_json_ld, access_token)
                 logging.info(" pistis_job_template#requires_access_policy_notification: Persited with UUID " + str(catalogue_ds_uuid))
                 
                 # Update job info with UUID
@@ -1029,12 +1029,12 @@ def pistis_job_template():
 
                 if ("uuid" in job_info.keys()): 
                     logging.info(" pistis_job_template#requires_add_data_distribution: Storing data in factory storage ... ")
-                    new_uuid = add_dataset_to_factory_data_storage(source, job_info["data_uuid"], bearer_token)
+                    new_uuid = add_dataset_to_factory_data_storage(source, job_info["data_uuid"], access_token)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Added DS with UUID = " + str(new_uuid))
                     accessURL = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(new_uuid)
                     json_ld = generate_json_ld_data_distribution(accessURL, extension)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Adding data distribution ... ")           
-                    add_distribution_to_data_catalogue(job_info["uuid"], json_ld, bearer_token)
+                    add_distribution_to_data_catalogue(job_info["uuid"], json_ld, access_token)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Data distribution added ... ")
 
             if (requires_only_metadata_update(service_endpoint)):
@@ -1069,7 +1069,7 @@ def pistis_job_template():
                     #ds_path_url = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + uuid
                     #ds_json_ld = generate_dataset_json_ld(source, metadata, ds_path_url)
                     logging.info(" pistis_job_template#requires_only_metadata_update: Updating metadata in data catalogue ... ") 
-                    update_metadata_in_data_catalogue(job_info["uuid"], metadata, bearer_token)
+                    update_metadata_in_data_catalogue(job_info["uuid"], metadata, access_token)
                     logging.info(" pistis_job_template#requires_only_metadata_update: Metadata updated ... ") 
 
             # Update JSON workflow resukts 
