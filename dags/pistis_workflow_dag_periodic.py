@@ -247,11 +247,11 @@ def pistis_periodic_workflow():
         #wf = context["params"]["workflow"]
         wf = context["params"]["workflow"]
         wf_size = len(wf)
-        logging.info("### pistis_workflow_template.workflow: wf = "+ str(wf) + " type = " + str(type(wf)))
+        logging.info("### pistis_periodic_workflow.workflow: wf = "+ str(wf) + " type = " + str(type(wf)))
         if (wf_size > 0):
            job = wf[0]
            #Variable.update(key="current_job", value=job['job_name'])
-           logging.info("### pistis_workflow_template.workflow: currrent_job = "+ job['job_name'])
+           logging.info("### pistis_periodic_workflow.workflow: currrent_job = "+ job['job_name'])
 
            # update root dag id
            if (not 'root_dag_run' in job.keys()):
@@ -283,31 +283,31 @@ def pistis_periodic_workflow():
     # def resolve_mappings():
     #     context = get_current_context()
     #     job = context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')
-    #     logging.info("pistis_workflow_template#resolve_mappings: Retrieving mappings ... " + str(job))
+    #     logging.info("pistis_periodic_workflow#resolve_mappings: Retrieving mappings ... " + str(job))
     #     # if mappings have been defined
     #     if ("mappings" in job): 
     #         #job_list = job['job_name'].split("->")
     #         mappings = job['mappings']
     #         #if (len(job_list) > 1):
-    #         logging.info("pistis_workflow_template#resolve_mappings: Mappings = " + str(mappings))
+    #         logging.info("pistis_periodic_workflow#resolve_mappings: Mappings = " + str(mappings))
     #         # To Do -> manage mappings (update source, ...)
 
     #     else:        
-    #         logging.info("pistis_workflow_template#resolve_mappings: No mappings were defined ")
+    #         logging.info("pistis_periodic_workflow#resolve_mappings: No mappings were defined ")
 
     # @task()
     # def retrieve_component_input_schema(job):
     #     context = get_current_context()
-    #      #print("### pistis_workflow_template.workflow: wf = "+ str(wf) + " type = " + str(type(wf)))
-    #     logging.info("pistis_workflow_template#retrieve_component_input_schema: Retrieving Component schema ... \n")
+    #      #print("### pistis_periodic_workflow.workflow: wf = "+ str(wf) + " type = " + str(type(wf)))
+    #     logging.info("pistis_periodic_workflow#retrieve_component_input_schema: Retrieving Component schema ... \n")
 
     # @task()
     # def retrieve_component_endpoint():
-    #     logging.info("pistis_workflow_template#retrieve_component_endpoint: Retrieving Component endpoint ... \n")        
+    #     logging.info("pistis_periodic_workflow#retrieve_component_endpoint: Retrieving Component endpoint ... \n")        
 
     # @task()
     # def validate_component_input_schema():
-    #     logging.info("pistis_workflow_template#validate_component_input_schema: Validating Component schema ... \n")    
+    #     logging.info("pistis_periodic_workflow#validate_component_input_schema: Validating Component schema ... \n")    
 
     # execute dag supporting pistis job
 
@@ -328,12 +328,12 @@ def pistis_periodic_workflow():
         conf_params = {}
         if (job_data['job_name'] != prev_job_name):
             
-            logging.info("pistis_workflow_template#generate_conf_for_job_dag: New Job = " + str(job_data['job_name']))
-            dr_list = DagRun.find(dag_id="pistis_workflow_template", run_id=prev_run_id)
-            logging.info("pistis_workflow_template#generate_conf_for_job_dag: Dag Run with id = " + str(prev_run_id) + " => " + str(dr_list))
+            logging.info("pistis_periodic_workflow#generate_conf_for_job_dag: New Job = " + str(job_data['job_name']))
+            dr_list = DagRun.find(dag_id="pistis_periodic_workflow", run_id=prev_run_id)
+            logging.info("pistis_periodic_workflow#generate_conf_for_job_dag: Dag Run with id = " + str(prev_run_id) + " => " + str(dr_list))
             if (len(dr_list) > 0):
                 ti = dr_list[0].get_task_instance(task_id='triggerDagRunOperator')
-                logging.info("pistis_workflow_template#generate_conf_for_job_dag: Dag Task Instance = " + str(ti))
+                logging.info("pistis_periodic_workflow#generate_conf_for_job_dag: Dag Task Instance = " + str(ti))
                     
                 trigger_run_id = ti.xcom_pull(task_ids='triggerDagRunOperator', key='trigger_run_id')
                 prev_run_updated = prev_job_name + "#" + trigger_run_id
@@ -390,17 +390,17 @@ def pistis_periodic_workflow():
 
     # @task()
     #def notify_lineage_tracker():
-    #    logging.info("pistis_workflow_template#notify_lineage_tracker: Notifiying to lineage tracker ... \n")     
+    #    logging.info("pistis_periodic_workflow#notify_lineage_tracker: Notifiying to lineage tracker ... \n")     
 
     # @task()
     # def store_dataset_in_fatory_storage(): 
-    #     logging.info("pistis_workflow_template#store_dataset_in_fatory_storage: Storing dataset in factory storage ... \n")     
+    #     logging.info("pistis_periodic_workflow#store_dataset_in_fatory_storage: Storing dataset in factory storage ... \n")     
 
         
     @task()
     def get_current_workflow():
         context = get_current_context()
-        logging.info("### pistis_workflow_template.workflow: wf = "+ str(context["params"]["workflow"]) + " type = " + str(type(context["params"]["workflow"])))
+        logging.info("### pistis_periodic_workflow.workflow: wf = "+ str(context["params"]["workflow"]) + " type = " + str(type(context["params"]["workflow"])))
         return context["params"]["workflow"] 
     
     @task()
@@ -414,7 +414,7 @@ def pistis_periodic_workflow():
         wf = context["params"]["workflow"]
         periodicity = context["params"]["periodicity"]
 
-        logging.info("### pistis_workflow_template.def check_pending_jobs(): WF = "+ str(wf))
+        logging.info("### pistis_periodic_workflow.def check_pending_jobs(): WF = "+ str(wf))
         if (len(wf) > 0):
             return "self_triggering_pistis_workflow"
         else:
@@ -442,7 +442,7 @@ def pistis_periodic_workflow():
             ## Add periodicity
             conf["periodicity"] = periodicity
 
-            dr_list = DagRun.find(dag_id="pistis_workflow_template", run_id=root_run_id)
+            dr_list = DagRun.find(dag_id="pistis_periodic_workflow", run_id=root_run_id)
             # Add wf and raw_wf: Retrieve initial root wf raw data
             if (len(dr_list) > 0):
                 #job_info["source"] = dr_list[0].conf['dataset']
