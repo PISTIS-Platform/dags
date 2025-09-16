@@ -130,7 +130,7 @@ from airflow.models import Variable
         "dataset": Param({"key": "value"}, type=["object", "null"]),
         "dataset_name": Param("Pistis DataSet", type="string"),
         "dataset_description": Param("Pistis DataSet", type="string"),
-        "bearer_token": Param("Access Token", type="string"),
+        "access_token": Param("Access Token", type="string"),
         "encryption": Param("Encryption Flag", type="string"),
         "periodicity": Param("", type="string"),
         "raw_wf": Param(
@@ -355,7 +355,7 @@ def pistis_periodic_workflow():
                  "response_metadata_field_path": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['response_metadata_field_path'],
                  #"lineage_tracking": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['lineage_tracking']
                  "is_last_job": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['is_last_job'],
-                 "bearer_token": context["params"]["access_token"]
+                 "access_token": context["params"]["access_token"]
                  }
              }
 
@@ -431,7 +431,7 @@ def pistis_periodic_workflow():
             context = get_current_context()
             conf = {}
             root_run_id = context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['root_dag_run']
-            access_token = context["ti"].xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value')['job_data']['bearer_token']
+            access_token = context["ti"].xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value')['job_data']['access_token']
             periodicity = context["params"]["periodicity"]
             trigger_run_id = context["ti"].xcom_pull(task_ids='triggerDagRunOperator', key='trigger_run_id')
             wf = []
@@ -472,7 +472,7 @@ def pistis_periodic_workflow():
         triggering_pistis_periodic_workflow = TriggerDagRunOperator(
             task_id='triggering_pistis_periodic_workflow',
             trigger_dag_id='pistis_periodic_workflow',
-            conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').periodicity }}", "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').workflow }}", "raw_wf": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}", "bearer_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').access_token }}", "logical_date": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').logical_date }}" },
+            conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').periodicity }}", "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').workflow }}", "raw_wf": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').access_token }}", "logical_date": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').logical_date }}" },
             wait_for_completion=False,
             poke_interval=10 
             #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
@@ -485,7 +485,7 @@ def pistis_periodic_workflow():
     self_triggering_pistis_workflow = TriggerDagRunOperator(
         task_id='self_triggering_pistis_workflow',
         trigger_dag_id='pistis_periodic_workflow',
-        conf={"periodicity": "{{ ti.xcom_pull(task_ids='get_periodicity', key='return_value') }}", "workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }}", "bearer_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.bearer_token }}" },
+        conf={"periodicity": "{{ ti.xcom_pull(task_ids='get_periodicity', key='return_value') }}", "workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.access_token }}" },
         wait_for_completion=True,
         poke_interval=10 
         #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
