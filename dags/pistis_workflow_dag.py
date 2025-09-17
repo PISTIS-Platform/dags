@@ -510,7 +510,7 @@ def pistis_workflow_template():
             #conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').periodicity }}", "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').workflow }}", "raw_wf": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').access_token }}", "logical_date": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').logical_date }}" },
             conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').periodicity }}", 
                    "access_token": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').access_token }}", 
-                   "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').workflow }}",
+                   "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}",
                    "raw_wf": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}", 
                    "dataset_name": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_name }}",
                    "dataset_description": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_description }}"},     

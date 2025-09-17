@@ -479,7 +479,7 @@ def pistis_periodic_workflow():
             task_id='triggering_pistis_periodic_workflow',
             trigger_dag_id='pistis_periodic_workflow',
             conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').periodicity }}", 
-                   "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').workflow }}", 
+                   "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}", 
                    "raw_wf": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}", 
                    "access_token": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').access_token }}",
                    "dataset_name": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_name }}",
