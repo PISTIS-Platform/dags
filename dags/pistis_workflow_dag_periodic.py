@@ -431,11 +431,17 @@ def pistis_periodic_workflow():
             context = get_current_context()
             conf = {}
             root_run_id = context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['root_dag_run']
-            access_token = context["ti"].xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value')['job_data']['access_token']
+            access_token = context["params"]["access_token"]
             periodicity = context["params"]["periodicity"]
+            ds_name = context["params"]["dataset_name"]
+            ds_description = context["params"]["dataset_description"]
             trigger_run_id = context["ti"].xcom_pull(task_ids='triggerDagRunOperator', key='trigger_run_id')
             wf = []
             
+            ## Add DS name and desscription
+            conf["dataset_name"] = ds_name
+            conf["dataset_description"] = ds_description
+
             ## Add access token
             conf["access_token"] = access_token 
 
@@ -472,7 +478,12 @@ def pistis_periodic_workflow():
         triggering_pistis_periodic_workflow = TriggerDagRunOperator(
             task_id='triggering_pistis_periodic_workflow',
             trigger_dag_id='pistis_periodic_workflow',
-            conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').periodicity }}", "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').workflow }}", "raw_wf": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').access_token }}", "logical_date": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').logical_date }}" },
+            conf= {"periodicity": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').periodicity }}", 
+                   "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').workflow }}", 
+                   "raw_wf": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}", 
+                   "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').access_token }}",
+                   "dataset_name": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_name }}",
+                   "dataset_description": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_description }}"}
             wait_for_completion=False,
             poke_interval=10,
             execution_date = "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').logical_date }}" 

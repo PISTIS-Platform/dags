@@ -592,7 +592,7 @@ def pistis_job_periodic():
         prefixes = [JSON, TSV, PARQUET, XML, XLSX]
         
         try:
-            dr_list = DagRun.find(dag_id="pistis_workflow_template", run_id=root_run_id)
+            dr_list = DagRun.find(dag_id="pistis_periodic_workflow", run_id=root_run_id)
             
             # Retrieve wf raw data using wf param dataset and update them over job source
             if (len(dr_list) > 0):
@@ -690,22 +690,22 @@ def pistis_job_periodic():
 
                 if (prev_job_name != 'none'):
 
-                    logging.info("pistis_workflow_template#resolve_mappings: Dag Run_Id = " + str(prev_run_id)) 
+                    logging.info("pistis_periodic_workflow#resolve_mappings: Dag Run_Id = " + str(prev_run_id)) 
                     dr_list = DagRun.find(dag_id="pistis_job_template", run_id=prev_run_id)
-                    logging.info("pistis_workflow_template#resolve_mappings: DR List = " + str(len(dr_list))) 
+                    logging.info("pistis_periodic_workflow#resolve_mappings: DR List = " + str(len(dr_list))) 
                     
                     if (len(dr_list) > 0):
                         ti = dr_list[0].get_task_instance(task_id='resolve_mappings')
-                        logging.info("pistis_workflow_template#resolve_mappings: Dag Task Instance = " + str(ti))
+                        logging.info("pistis_periodic_workflow#resolve_mappings: Dag Task Instance = " + str(ti))
                         
                         task_result = ti.xcom_pull(task_ids='resolve_mappings', key='return_value') 
-                        logging.info("pistis_workflow_template#resolve_mappings: Task Result = " + str(task_result))
+                        logging.info("pistis_periodic_workflow#resolve_mappings: Task Result = " + str(task_result))
 
                         ti = dr_list[0].get_task_instance(task_id='storage')
-                        logging.info("pistis_workflow_template#resolve_mappings: Dag Task Instance = " + str(ti))
+                        logging.info("pistis_periodic_workflow#resolve_mappings: Dag Task Instance = " + str(ti))
                         
                         task_meta_result = ti.xcom_pull(task_ids='storage', key='return_value') 
-                        logging.info("pistis_workflow_template#resolve_mappings: Task Result = " + str(task_meta_result))    
+                        logging.info("pistis_periodic_workflow#resolve_mappings: Task Result = " + str(task_meta_result))    
 
                         # update metadata using previous job metadata
                         job_info["metadata"] = task_meta_result['metadata']
@@ -713,9 +713,9 @@ def pistis_job_periodic():
                     # Update input_data with results comming from previous job execution
                     #input_data = job_info["input_data"]
                         
-                    logging.info("pistis_workflow_template#resolve_mappings: Job List = " + str(jobs))     
+                    logging.info("pistis_periodic_workflow#resolve_mappings: Job List = " + str(jobs))     
                     for job_name in jobs:
-                        logging.info("pistis_workflow_template#resolve_mappings: Jobs loop -> Job = " + str(job_name))
+                        logging.info("pistis_periodic_workflow#resolve_mappings: Jobs loop -> Job = " + str(job_name))
                         for attr in evaluable_attrs:
                             value_list = []
                             if (type(job_info[attr]) is list):
@@ -724,7 +724,7 @@ def pistis_job_periodic():
                                 value_list.append(attr) 
 
                             for idata in value_list:
-                                logging.info("pistis_workflow_template#resolve_mappings: Input Data -> Field = " + str(idata))
+                                logging.info("pistis_periodic_workflow#resolve_mappings: Input Data -> Field = " + str(idata))
 
                                 mapping_regex = "none"    
 
@@ -747,14 +747,14 @@ def pistis_job_periodic():
                                         job_data = task_result    
                                     
                                     for attr in map_list:
-                                        logging.info("pistis_workflow_template#resolve_mappings: Mapping List -> attr = " + str(attr))
+                                        logging.info("pistis_periodic_workflow#resolve_mappings: Mapping List -> attr = " + str(attr))
                                         # if current job use context to resolve
                                         #if (job_name == current_job_name):
                                         
                                         if type(job_data) is list:
                                                 # if (attr in job_data.keys()):
                                                 #     map_value = job_data[attr]
-                                                #     logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(attr) + " => " + str(map_value))
+                                                #     logging.info("pistis_periodic_workflow#resolve_mappings: Map Value using " + str(attr) + " => " + str(map_value))
                                                     
                                                 # else:
                                                     
@@ -762,37 +762,37 @@ def pistis_job_periodic():
                                                 rlist = list(filter(lambda x: (x['name']==attr), job_data))
                                                 if (len(rlist) > 0):
                                                     map_value= rlist[0]['value']
-                                                    logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(rlist[0]['value']) + " => " + str(map_value))
+                                                    logging.info("pistis_periodic_workflow#resolve_mappings: Map Value using " + str(rlist[0]['value']) + " => " + str(map_value))
 
                                         elif (attr in job_data.keys()):
                                             if (type(job_data[attr]) is not list):
                                                 map_value = job_data[attr]
-                                                logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(job_data[attr]) + " => " + str(map_value))
+                                                logging.info("pistis_periodic_workflow#resolve_mappings: Map Value using " + str(job_data[attr]) + " => " + str(map_value))
                                             job_data = job_data[attr]
                                                 
                                         else:        
                                             map_value = job_data
-                                            logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(job_data) + " => " + str(map_value))    
+                                            logging.info("pistis_periodic_workflow#resolve_mappings: Map Value using " + str(job_data) + " => " + str(map_value))    
 
                                         # else:     
 
                                         #     # check if attr is key on json object
                                         #     if attr in task_result.keys():
                                         #         map_value = task_result[attr]
-                                        #         logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(attr) + " => " + str(map_value))
+                                        #         logging.info("pistis_periodic_workflow#resolve_mappings: Map Value using " + str(attr) + " => " + str(map_value))
                                         #     else:
                                         #     # Search data based on key and value using filter and list method
                                         #         rlist = list(filter(lambda x: (x['name']==attr), input_data))
                                         #         if (len(rlist) > 0):
                                         #             map_value= rlist[0]['value'] 
-                                        #             logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(rlist[0]['value']) + " => " + str(map_value))    
+                                        #             logging.info("pistis_periodic_workflow#resolve_mappings: Map Value using " + str(rlist[0]['value']) + " => " + str(map_value))    
                                                         
                                     # update resolved mapping into job input data
                                     if ('value' in idata):
                                         idata['value'] = map_value
                                     else:
                                         job_info[idata] = map_value   
-                                    logging.info("pistis_workflow_template#resolve_mappings: Mapping resolved for " + str(idata) + " with " + str(map_value))                            
+                                    logging.info("pistis_periodic_workflow#resolve_mappings: Mapping resolved for " + str(idata) + " with " + str(map_value))                            
                     
                     
             return job_info
@@ -1003,7 +1003,7 @@ def pistis_job_periodic():
                 #ds_json_ld = generate_dataset_json_ld(source, metadata, ds_path_url, extension)
                 #logging.info(" pistis_job_template#requires_access_policy_notification: Persiting metadata in Factory Data Catalogue using UUID = " + str(uuid))
                 #catalogue_ds_uuid = add_dataset_to_factory_data_catalogue(ds_json_ld, access_token)
-                logging.info(" pistis_job_template#requires_access_policy_notification: Persited with UUID " + str(catalogue_ds_uuid))
+                logging.info(" pistis_job_template#requires_access_policy_notification: Persited with DATA_UUID " + str(data_uuid))
                 
                 # Update job info with UUID
                 job_info["data_uuid"] = data_uuid
@@ -1022,14 +1022,14 @@ def pistis_job_periodic():
 
                     if (prev_job_name != 'none'):
                         dr_list = DagRun.find(dag_id="pistis_job_template", run_id=prev_run_id)
-                        logging.info("pistis_workflow_template#requires_add_data_distribution: DR List = " + str(len(dr_list))) 
+                        logging.info("pistis_periodic_workflow#requires_add_data_distribution: DR List = " + str(len(dr_list))) 
                         
                         if (len(dr_list) > 0):
                             ti = dr_list[0].get_task_instance(task_id='resolve_mappings')
-                            logging.info("pistis_workflow_template#requires_add_data_distribution: Dag Task Instance = " + str(ti))
+                            logging.info("pistis_periodic_workflow#requires_add_data_distribution: Dag Task Instance = " + str(ti))
                                 
                             task_result = ti.xcom_pull(task_ids='storage', key='return_value') 
-                            logging.info("pistis_workflow_template#requires_add_data_distribution: Task Result = " + str(task_result))
+                            logging.info("pistis_periodic_workflow#requires_add_data_distribution: Task Result = " + str(task_result))
 
                             # update metadata using previous job metadata
                             job_info["uuid"] = task_result['uuid']
@@ -1056,21 +1056,21 @@ def pistis_job_periodic():
 
                     if (prev_job_name != 'none'):
                         dr_list = DagRun.find(dag_id="pistis_job_template", run_id=prev_run_id)
-                        logging.info("pistis_workflow_template#requires_only_metadata_update: DR List = " + str(len(dr_list))) 
+                        logging.info("pistis_periodic_workflow#requires_only_metadata_update: DR List = " + str(len(dr_list))) 
                         
                         if (len(dr_list) > 0):
                             ti = dr_list[0].get_task_instance(task_id='resolve_mappings')
-                            logging.info("pistis_workflow_template#requires_only_metadata_update: Dag Task Instance = " + str(ti))
+                            logging.info("pistis_periodic_workflow#requires_only_metadata_update: Dag Task Instance = " + str(ti))
                                 
                             task_result = ti.xcom_pull(task_ids='storage', key='return_value') 
-                            logging.info("pistis_workflow_template#requires_only_metadata_update: Task Result = " + str(task_result))
+                            logging.info("pistis_periodic_workflow#requires_only_metadata_update: Task Result = " + str(task_result))
 
                             # update metadata using previous job metadata
                             job_info["uuid"] = task_result['uuid']
                             job_info["data_uuid"] = task_result['data_uuid']
 
                 if ("uuid" in job_info.keys()): 
-                    logging.info(" pistis_workflow_template#requires_only_metadata_update: Updating metadata in Factory Data Catalogue using UUID = " + job_info["uuid"])
+                    logging.info(" pistis_periodic_workflow#requires_only_metadata_update: Updating metadata in Factory Data Catalogue using UUID = " + job_info["uuid"])
                     #uuid = add_dataset_to_factory_data_storage(source)
                     uuid = job_info["uuid"]
                     #logging.info(" pistis_job_template#requires_only_metadata_update: Added DS with UUID = " + uuid)
