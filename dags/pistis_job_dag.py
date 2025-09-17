@@ -371,22 +371,6 @@ def pistis_job_template():
        logging.info(" pistis_job_template#generate_json_ld_data_distribution: TEMPLATE GENERATED = " + str(template)) 
        return jsoninja.replace(template, replacements)
         
-    def get_access_token():
-        logging.info(" pistis_job_template#get_access_token: Calling to IAM to get access token ... ")
-        payload = 'grant_type=password&client_id=c0604304-a46e-42f9-bec9-7894f5ba73a6--9eadeb89-d3d2-4690-aa90-1a4631a664f2&client_secret=upbYDaje2e5SG7RS0J8RwrtzQDxynRsh&username=pdt-01&password=pdt-01'
-          
-        headers = {
-                    "Content-Type": "application/x-www-form-urlencoded"
-                  }
-        endpoint = AUTH_URL 
-            
-        logging.info(" pistis_job_template#add_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
-        
-        res = requests.post(url=endpoint, headers=headers, data=payload)
-        logging.info(" ### pistis_job_template#get_access_token  Response: " + str(res))
-        json_res = res.json()
-        return json_res['access_token']
-    
     def notify_access_policy(uuid, name, description, access_token):
        logging.info(" pistis_job_template#notify_access_policy: Calling to IAM to notify access policy for DS with UUID = " + str(uuid))
        payload = {
