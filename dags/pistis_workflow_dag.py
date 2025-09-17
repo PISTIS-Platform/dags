@@ -512,7 +512,7 @@ def pistis_workflow_template():
                    "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').workflow }}",
                    "raw_wf": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}", 
                    "dataset_name": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_name }}",
-                   "dataset_description": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_description }}"}     
+                   "dataset_description": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_description }}"},     
             wait_for_completion=False,
             poke_interval=10,
             execution_date= "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').logical_date }}" 
