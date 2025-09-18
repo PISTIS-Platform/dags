@@ -355,7 +355,9 @@ def pistis_periodic_workflow():
                  "response_metadata_field_path": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['response_metadata_field_path'],
                  #"lineage_tracking": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['lineage_tracking']
                  "is_last_job": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['is_last_job'],
-                 "access_token": context["params"]["access_token"]
+                 "access_token": context["params"]["access_token"],
+                 "uuid": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['uuid'],
+                 "data_uuid": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['data_uuid']
                  }
              }
 
