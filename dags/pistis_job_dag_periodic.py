@@ -197,6 +197,8 @@ def pistis_job_periodic():
         s3_path = source[len("s3://"):]
         s3_list = s3_path.split('/')
         index = len(s3_list) - 2
+        asset_uuid = uuid
+        
         if (len(s3_list) > 0):
             bucket_name = s3_list[index]
             object_name = s3_list[index + 1]
@@ -237,12 +239,14 @@ def pistis_job_periodic():
            else:
               endpoint = DATA_STORAGE_URL + "/api/files/update_file?asset_uuid=" + uuid 
               logging.info(" pistis_job_template#update_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
-              res = requests.put(url=endpoint, headers=headers, data=payload, files=files)  
+              res = requests.put(url=endpoint, headers=headers, data=payload, files=files)
+              json_res = res.json()
+              asset_uuid = json_res['asset_uuid']  
             
         
         logging.info(" ### add_dataset_to_factory_data_storage request: " + str(res.json()))
-        json_res = res.json()
-        return json_res['asset_uuid']
+        
+        return asset_uuid
 
     def add_dataset_to_factory_data_catalogue(ds_json_ld, access_token):
         # TO-DO define catalogue name as input
