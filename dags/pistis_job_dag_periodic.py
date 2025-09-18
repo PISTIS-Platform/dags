@@ -233,7 +233,7 @@ def pistis_job_periodic():
            if (append_required):
               endpoint = DATA_STORAGE_URL + "/api/files/append_files?asset_uuid=" + uuid 
               logging.info(" pistis_job_template#append_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
-              res = requests.put(url=endpoint, headers=headers, data=payload, files=files) 
+              res = requests.post(url=endpoint, headers=headers, data=payload, files=files) 
            else:
               endpoint = DATA_STORAGE_URL + "/api/files/update_file?asset_uuid=" + uuid 
               logging.info(" pistis_job_template#update_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
