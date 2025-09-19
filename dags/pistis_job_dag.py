@@ -614,8 +614,8 @@ def pistis_job_template():
                             file_content = file.read()
                             file_base64_string = b64encode(file_content).decode('utf-8')
                             decoded_data = decodebytes(file_base64_string.encode("utf-8"))
-                    elif extension.lower() != CSV:
-                        raise Exception("File format not supported. Formats supported are: CSV, Json, Xml, TSV, Xlsx and Parquet")
+                    #elif extension.lower() != CSV:
+                    #    raise Exception("File format not supported. Formats supported are: CSV, Json, Xml, TSV, Xlsx and Parquet")
                         
                     # Put  data in the bucket
                     result = client.put_object(MINIO_BUCKET_NAME, file_name + "_jc" + root_run_id + "_jc" + extension, data=BytesIO(decoded_data), length=len(decoded_data)) 

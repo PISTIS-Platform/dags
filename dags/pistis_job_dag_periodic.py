@@ -624,8 +624,8 @@ def pistis_job_periodic():
                             file_content = file.read()
                             file_base64_string = b64encode(file_content).decode('utf-8')
                             decoded_data = decodebytes(file_base64_string.encode("utf-8"))
-                    elif extension.lower() != CSV:
-                        raise Exception("File format not supported. Formats supported are: CSV, Json, Xml, TSV, Xlsx and Parquet")
+                    #elif extension.lower() != CSV:
+                    #    raise Exception("File format not supported. Formats supported are: CSV, Json, Xml, TSV, Xlsx and Parquet")
                         
                     # Put  data in the bucket
                     result = client.put_object(MINIO_BUCKET_NAME, file_name + "_jc" + root_run_id + "_jc" + extension, data=BytesIO(decoded_data), length=len(decoded_data)) 
@@ -993,8 +993,14 @@ def pistis_job_periodic():
                 #catalogue_ds_uuid = add_dataset_to_factory_data_catalogue(ds_json_ld, access_token)
                 logging.info(" pistis_job_template#requires_access_policy_notification: Persited with DATA_UUID " + str(data_uuid))
                 
+                logging.info(" pistis_job_template#requires_only_metadata_update: Updating metadata in data catalogue: modified and size ... ") 
+                ## TO-DO
+                #metadata_to_update = {"modified": datetime.utcnow().isoformat(), "byteSize": }
+                #update_metadata_in_data_catalogue(job_info["uuid"], metadata, access_token)
+                logging.info(" pistis_job_template#requires_only_metadata_update: Metadata updated ... ")
+                
                 # Update job info with UUID
-                job_info["data_uuid"] = data_uuid
+                #job_info["data_uuid"] = data_uuid
 
             if requires_add_data_distribution(service_endpoint):
 
