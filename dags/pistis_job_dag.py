@@ -722,7 +722,7 @@ def pistis_job_template():
                                     if (job_name == current_job_name):
                                         job_data = job_info
                                     else:
-                                        job_data = task_result    
+                                        job_data = task_meta_result    
                                     
                                     for attr in map_list:
                                         logging.info("pistis_workflow_template#resolve_mappings: Mapping List -> attr = " + str(attr))
