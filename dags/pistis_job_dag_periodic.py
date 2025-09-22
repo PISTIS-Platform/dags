@@ -1027,7 +1027,7 @@ def pistis_job_periodic():
                 # Store metadata in factory data catalogue using uuid got it from data storage                            
                 logging.info(" pistis_job_template#requires_append_data: Updating metadata in data catalogue: modified and size ... ") 
                 
-                metadata_to_update = {"modified": datetime.utcnow().isoformat(), "byteSize": len(res.content)}
+                metadata_to_update = {"modified": datetime.utcnow().isoformat(), "byteSize": str(len(res.content))}
                 update_metadata_in_data_catalogue(job_info["uuid"], metadata_to_update, access_token)
                 logging.info(" pistis_job_template#requires_append_data: Metadata updated in the Catalogue for DS with uuui: "+ job_info["uuid"])
 
