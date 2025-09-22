@@ -247,6 +247,24 @@ def pistis_job_periodic():
         logging.info(" ### add_dataset_to_factory_data_storage request: " + str(res.json()))
         
         return asset_uuid
+    
+    def get_dataset_to_factory_data_storage(ds_path, access_token):
+        logging.info(" ### Getting dataset to Factory Data Storage using URL: " + ds_path)
+        
+        payload = {}
+          
+        #access_token = get_access_token()  
+        headers = {
+                    "Authorization": "Bearer " + access_token # DATA_STORAGE_API_KEY
+                  }
+        
+        endpoint = ds_path
+        logging.info(" pistis_job_template#get_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        res = requests.get(url=endpoint, headers=headers, data=payload)
+             
+        logging.info(" ### get_dataset_to_factory_data_storage request: " + str(res))
+        
+        return res
 
     def add_dataset_to_factory_data_catalogue(ds_json_ld, access_token):
         # TO-DO define catalogue name as input
@@ -267,6 +285,7 @@ def pistis_job_periodic():
         res = requests.post(url=endpoint, headers=headers, data=payload, files=files)
         logging.info(" ### add_dataset_to_factory_data_catalogue request: " + str(res))
         return res.json()        
+    
     
     def persist_in_minio(field_value, source):
         logging.info(" ### Persisting object in MINIO ... ")
@@ -307,6 +326,12 @@ def pistis_job_periodic():
        persist_in_minio(json_wf, wf_s3_endpoint)
 
 
+    def getFileName(source):
+       s3_path = source[len("s3://"):]
+       s3_list = s3_path.split('/')
+       object_name = s3_list[len(s3_list)-1]
+       return os.path.splitext(object_name)[0]
+    
     def getFileExtension(source):
        s3_path = source[len("s3://"):]
        s3_list = s3_path.split('/')
@@ -980,27 +1005,31 @@ def pistis_job_periodic():
             #if (lineage_tracking or (destination_type == "factory_storage")):
             if requires_append_data(service_endpoint):
                 # Store data asset in factory storage
-                logging.info(" pistis_job_template#requires_access_policy_notification: Appending data in factory storage ... ")
+                logging.info(" pistis_job_template#requires_append_data: Appending data in factory storage ... ")
                 data_uuid = add_dataset_to_factory_data_storage(source, job_info["data_uuid"], access_token, True)
+                logging.info(" pistis_job_template#requires_append_data: Persited with DATA_UUID " + str(data_uuid))
+
                 ds_path_url = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(data_uuid)
+                res = get_dataset_to_factory_data_storage(ds_path_url, access_token)
 
-                # Notify to IAM the default access policy associated to the DS --> NOT NEED FOR PERIODIC
-                #register_default_access_policy(uuid, metadata["dataset_name"], metadata["dataset_description"], access_token)
+                
+                logging.info(" pistis_job_template#requires_append_data: Appended DS got it from Factory storage ...")
 
-                # Store metadata in factory data catalogue using uuid got it from data storage
-                #ds_json_ld = generate_dataset_json_ld(source, metadata, ds_path_url, extension)
-                #logging.info(" pistis_job_template#requires_access_policy_notification: Persiting metadata in Factory Data Catalogue using UUID = " + str(uuid))
-                #catalogue_ds_uuid = add_dataset_to_factory_data_catalogue(ds_json_ld, access_token)
-                logging.info(" pistis_job_template#requires_access_policy_notification: Persited with DATA_UUID " + str(data_uuid))
+                # Rename file to JC naming 
+                job_info["source"] = getFileName(job_info["source"]) + "_jc" + root_run_id + "_jc" + getFileExtension(job_info["source"])    
                 
-                logging.info(" pistis_job_template#requires_only_metadata_update: Updating metadata in data catalogue: modified and size ... ") 
-                ## TO-DO
-                #metadata_to_update = {"modified": datetime.utcnow().isoformat(), "byteSize": }
-                #update_metadata_in_data_catalogue(job_info["uuid"], metadata, access_token)
-                logging.info(" pistis_job_template#requires_only_metadata_update: Metadata updated ... ")
+                # update source using minio uri
+                logging.info(" pistis_job_template#Persisting Resuls in Minio ... ")
+                object_url = persist_in_minio(res.content.decode('utf-8'), job_info["source"])
                 
-                # Update job info with UUID
-                #job_info["data_uuid"] = data_uuid
+                logging.info(" pistis_job_template#requires_append_data: Persited with DATA_UUID " + str(data_uuid))
+
+                # Store metadata in factory data catalogue using uuid got it from data storage                            
+                logging.info(" pistis_job_template#requires_append_data: Updating metadata in data catalogue: modified and size ... ") 
+                
+                metadata_to_update = {"modified": datetime.utcnow().isoformat(), "byteSize": len(res.content)}
+                update_metadata_in_data_catalogue(job_info["uuid"], metadata_to_update, access_token)
+                logging.info(" pistis_job_template#requires_append_data: Metadata updated in the Catalogue for DS with uuui: "+ job_info["uuid"])
 
             if requires_add_data_distribution(service_endpoint):
 
