@@ -203,17 +203,7 @@ def pistis_job_periodic():
             bucket_name = s3_list[index]
             object_name = s3_list[index + 1]
             logging.info(" ### Getting S3 Object with bucket = " + bucket_name + " and object_name = " + object_name)
-            file = client.get_object(bucket_name,object_name)
-            #res_file = "proc_" + re.sub(r'\.[^.]+$', raw_extension, object_name)
-            #tokens = object_name.split('.')
-            #extension = "." + tokens[-1]
-
-            #logging.info(" ### Checking dataset extension =>  " + extension)
-            
-            #if (extension.lower() != raw_extension):
-            #    transform_ds_format(file, res_file, extension.lower(), raw_extension)
-            #else:
-            #    res_file = file    
+            file = client.get_object(bucket_name,object_name)   
 
             files=[
                    #('file',(re.sub(r'\.[^.]+$', '', object_name), res_file,'rb'))
@@ -222,7 +212,6 @@ def pistis_job_periodic():
 
         payload = {}
           
-        #access_token = get_access_token()  
         headers = {
                     "Authorization": "Bearer " + access_token # DATA_STORAGE_API_KEY
                   }
@@ -707,11 +696,6 @@ def pistis_job_periodic():
                     logging.info("pistis_periodic_workflow#resolve_mappings: DR List = " + str(len(dr_list))) 
                     
                     if (len(dr_list) > 0):
-                        ti = dr_list[0].get_task_instance(task_id='resolve_mappings')
-                        logging.info("pistis_periodic_workflow#resolve_mappings: Dag Task Instance = " + str(ti))
-                        
-                        task_result = ti.xcom_pull(task_ids='resolve_mappings', key='return_value') 
-                        logging.info("pistis_periodic_workflow#resolve_mappings: Task Result = " + str(task_result))
 
                         ti = dr_list[0].get_task_instance(task_id='storage')
                         logging.info("pistis_periodic_workflow#resolve_mappings: Dag Task Instance = " + str(ti))
@@ -823,11 +807,7 @@ def pistis_job_periodic():
         job_name = job_info["job_name"]
         wf_results_id = job_info['wf_results_id'] 
         access_token = job_info['access_token'] 
-        
-        # headers={"User-Agent": "Pistis", 
-        #          "Accept": "*/*",
-        #          "Content-Type": ctype}
-        
+               
         headers = {
                     "Accept": ctype,
                     "Authorization": "Bearer " + access_token 
@@ -885,15 +865,6 @@ def pistis_job_periodic():
               res = requests.delete(url=endpoint,headers=headers,data=data)      
             logging.info(" pistis_job_periodic#callService: Service Reponse: " + str(res) ) 
             
-            # Turns your json dict into a str
-            #json_res = json.dumps(res.json())  
-            #base64_bytes = b64encode(bytes(json_res, 'utf-8'))
-            #base64_string = base64_bytes.decode("utf-8")
-            #decoded_data = decodebytes(base64_string.encode("utf-8"))
-
-            # upload response in minio
-            #result = client.put_object(MINIO_BUCKET_NAME, "pistis_service_respone_" + run_id + ".json", data=BytesIO(decoded_data), length=len(decoded_data), content_type="application/json") 
-
             #update source with last version of ds
             logging.info(" ### Updating source with last version of ds .... ")
             #job_info["source"] = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
@@ -980,11 +951,7 @@ def pistis_job_periodic():
         
     @task()
     def storage(job_info):
-        #json_res = json.dumps(serviceResponse) 
-        #context = get_current_context()
-        #job_info = context["params"]["job_data"]
-        #destination_type = context["params"]["job_data"]["destination_type"]
-        #destination_type = job_info['destination_type']
+
         wf_results_id = job_info['wf_results_id'] 
         root_run_id = job_info["root_dag_run"]
         job_name = job_info["job_name"]

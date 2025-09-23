@@ -573,11 +573,6 @@ def pistis_job_template():
                 if (source == "workflow"):
                     logging.info(" pistis_job_template#retrieve: Retrievind data and metadata from workflow ... ") 
 
-                    # Initialze JSON workflow resukts 
-                    # wf_results = { "runId": root_run_id, "status": "executing", "catalogue_dataset_endpoint": "none" }
-                    # wf_s3_endpoint =  "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + root_run_id + ".json"
-                    # persist_in_minio(wf_results, wf_s3_endpoint)
-
                     # Retrieving dataset
                     json_dataset = dr_list[0].conf['dataset']
                     file_full_name = json_dataset['name']
@@ -591,12 +586,6 @@ def pistis_job_template():
                     # Write the stuff
                     with open(file_full_name, "wb") as file:
                         file.write(bytesio_object.getbuffer())
-
-                    #files[field['name']] = ("airflow_dataset.csv", file, 'text/csv') 
-
-                    # Retrieving metadata
-                    #json_meta = dr_list[0].conf['metadata']
-                    #json_meta_encode_data = json.dumps(json_meta).encode('utf-8')
 
                     # Check file format is: json, csv, tsv or parquet
                     if file_full_name.lower().endswith(tuple(prefixes)):
@@ -664,11 +653,6 @@ def pistis_job_template():
                     logging.info("pistis_workflow_template#resolve_mappings: DR List = " + str(len(dr_list))) 
                     
                     if (len(dr_list) > 0):
-                        ti = dr_list[0].get_task_instance(task_id='resolve_mappings')
-                        logging.info("pistis_workflow_template#resolve_mappings: Dag Task Instance = " + str(ti))
-                        
-                        task_result = ti.xcom_pull(task_ids='resolve_mappings', key='return_value') 
-                        logging.info("pistis_workflow_template#resolve_mappings: Task Result = " + str(task_result))
 
                         ti = dr_list[0].get_task_instance(task_id='storage')
                         logging.info("pistis_workflow_template#resolve_mappings: Dag Task Instance = " + str(ti))
@@ -721,11 +705,6 @@ def pistis_job_template():
                                         #if (job_name == current_job_name):
                                         
                                         if type(job_data) is list:
-                                                # if (attr in job_data.keys()):
-                                                #     map_value = job_data[attr]
-                                                #     logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(attr) + " => " + str(map_value))
-                                                    
-                                                # else:
                                                     
                                                 # Search data based on key and value using filter and list method
                                                 rlist = list(filter(lambda x: (x['name']==attr), job_data))
@@ -742,20 +721,7 @@ def pistis_job_template():
                                         else:        
                                             map_value = job_data
                                             logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(job_data) + " => " + str(map_value))    
-
-                                        # else:     
-
-                                        #     # check if attr is key on json object
-                                        #     if attr in task_result.keys():
-                                        #         map_value = task_result[attr]
-                                        #         logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(attr) + " => " + str(map_value))
-                                        #     else:
-                                        #     # Search data based on key and value using filter and list method
-                                        #         rlist = list(filter(lambda x: (x['name']==attr), input_data))
-                                        #         if (len(rlist) > 0):
-                                        #             map_value= rlist[0]['value'] 
-                                        #             logging.info("pistis_workflow_template#resolve_mappings: Map Value using " + str(rlist[0]['value']) + " => " + str(map_value))    
-                                                        
+                    
                                     # update resolved mapping into job input data
                                     if ('value' in idata):
                                         idata['value'] = map_value
@@ -780,10 +746,6 @@ def pistis_job_template():
         job_name = job_info["job_name"]
         wf_results_id = job_info['wf_results_id'] 
         access_token = job_info['access_token'] 
-        
-        # headers={"User-Agent": "Pistis", 
-        #          "Accept": "*/*",
-        #          "Content-Type": ctype}
         
         headers = {
                     "Accept": ctype,
@@ -842,15 +804,6 @@ def pistis_job_template():
               res = requests.delete(url=endpoint,headers=headers,data=data)      
             logging.info(" pistis_job_template#callService: Service Reponse: " + str(res) ) 
             
-            # Turns your json dict into a str
-            #json_res = json.dumps(res.json())  
-            #base64_bytes = b64encode(bytes(json_res, 'utf-8'))
-            #base64_string = base64_bytes.decode("utf-8")
-            #decoded_data = decodebytes(base64_string.encode("utf-8"))
-
-            # upload response in minio
-            #result = client.put_object(MINIO_BUCKET_NAME, "pistis_service_respone_" + run_id + ".json", data=BytesIO(decoded_data), length=len(decoded_data), content_type="application/json") 
-
             #update source with last version of ds
             logging.info(" ### Updating source with last version of ds .... ")
             #job_info["source"] = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + result.object_name
@@ -937,11 +890,7 @@ def pistis_job_template():
         
     @task()
     def storage(job_info):
-        #json_res = json.dumps(serviceResponse) 
-        #context = get_current_context()
-        #job_info = context["params"]["job_data"]
-        #destination_type = context["params"]["job_data"]["destination_type"]
-        #destination_type = job_info['destination_type']
+
         wf_results_id = job_info['wf_results_id'] 
         root_run_id = job_info["root_dag_run"]
         job_name = job_info["job_name"]
@@ -1049,12 +998,6 @@ def pistis_job_template():
 
             # Update JSON workflow resukts 
             if (last_job):
-                #dr_list = DagRun.find(dag_id="pistis_workflow_template", run_id=root_run_id)
-                # Retrieve wf raw data using wf param dataset and update them over job source
-                #if (len(dr_list) > 0):
-                #    raw_wf = dr_list[0].conf['raw_wf']
-                #    raw_wf[0]['uuid'] = job_info["uuid"]
-                #    raw_wf[0]['data_uuid'] = job_info["data_uuid"]
                     
                 ds_catalogue_url = {'id': job_info["uuid"]} # DATA_CATALOGUE_URL + "/datasets/" + job_info["uuid"]
                 wf_results = { "runId": wf_results_id, "status": "finished", "catalogue_dataset_endpoint": ds_catalogue_url }
