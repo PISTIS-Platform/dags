@@ -314,14 +314,14 @@ def pistis_job_periodic():
 
             # Put  data in the bucket
             result = client.put_object(MINIO_BUCKET_NAME, object_name, data=BytesIO(encoded_data), length=len(encoded_data)) 
-            object_url = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
+            object_url = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME + "/" + result.object_name
             logging.info(" ### Object persisted in MINIO. URL: " + object_url)    
         
         return object_url 
 
     def update_workflow_status(status, message, runId):
        json_wf = { "runId": runId, "status": status, "catalogue_dataset_endpoint": "none", "message": message }
-       wf_s3_endpoint =  "s3://" + MINIO_BUCKET_NAME + "/" + runId + ".json"
+       wf_s3_endpoint =  "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME + "/" + runId + ".json"
        persist_in_minio(json_wf, wf_s3_endpoint)
 
 
@@ -477,7 +477,7 @@ def pistis_job_periodic():
         
         res = requests.get(url=endpoint, headers=headers, data=payload)
 
-        logging.info(" ### pistis_job_periodic#add_distribution_to_data_catalogue  Response: " + str(res))
+        logging.info(" ### pistis_job_periodic#update_metadata_in_data_catalogue  Response: " + str(res))
 
         ds_json = res.json()
         for meta_field in metadata.keys():
@@ -655,7 +655,7 @@ def pistis_job_periodic():
                     result = client.put_object(MINIO_BUCKET_NAME, file_name + "_jc" + root_run_id + "_jc" + extension, data=BytesIO(decoded_data), length=len(decoded_data)) 
                     
                     # update source using minio uri
-                    job_info["source"] = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
+                    job_info["source"] = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME + "/" + result.object_name
 
                     # Put metedata in a bucket
                     #result = client.put_object(MINIO_BUCKET_NAME, file_name + "_meta." + root_run_id + ".json", data=BytesIO(json_meta_encode_data), length=len(json_meta_encode_data)) 
@@ -933,13 +933,13 @@ def pistis_job_periodic():
                     if (meta_field_path.strip().lower() == "html"):  
                         res_val = res.content.decode('utf-8')
                         json_s3_name = endpoint[len("http://"):]
-                        s3_full_name = "s3://" + MINIO_BUCKET_NAME + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".html"
+                        s3_full_name = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".html"
                         json_res_val = persist_in_minio(res_val, s3_full_name)   
                     
                     elif (meta_field_path.strip().lower() == "json"):
                         json_res_val = res.json()
                         json_s3_name = endpoint[len("http://"):]
-                        s3_full_name = "s3://" + MINIO_BUCKET_NAME + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".json"
+                        s3_full_name = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".json"
                         json_res_val = persist_in_minio(json_res_val, s3_full_name)
 
                     else: 
@@ -1106,7 +1106,7 @@ def pistis_job_periodic():
             if (last_job):
                 ds_catalogue_url = {'id': job_info["uuid"]} # DATA_CATALOGUE_URL + "/datasets/" + job_info["uuid"]
                 wf_results = { "runId": wf_results_id, "status": "finished", "catalogue_dataset_endpoint": ds_catalogue_url }
-                wf_s3_endpoint =  "s3://" + MINIO_BUCKET_NAME + "/" + root_run_id + ".json"
+                wf_s3_endpoint =  "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME + "/" + root_run_id + ".json"
                 persist_in_minio(wf_results, wf_s3_endpoint)
                 
             return job_info 
