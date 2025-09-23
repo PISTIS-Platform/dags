@@ -194,7 +194,7 @@ def pistis_job_periodic():
     def add_dataset_to_factory_data_storage(source, uuid, access_token, append_required):
         logging.info(" ### Adding dataset to Factory Data Storage using source: " + source)
         file=[]
-        s3_path = source[len("s3://"):]
+        s3_path = source[len("s3://" + MINIO_URL + "/"):]
         s3_list = s3_path.split('/')
         index = len(s3_list) - 2
         asset_uuid = uuid
@@ -293,7 +293,7 @@ def pistis_job_periodic():
         object_url = field_value
 
         persist_required = False
-        s3_path = source[len("s3://"):]
+        s3_path = source[len("s3://" + MINIO_URL + "/"):]
         s3_list = s3_path.split('/')
         index = len(s3_list) - 2
         if (len(s3_list) > 0):
@@ -327,13 +327,13 @@ def pistis_job_periodic():
 
 
     def getFileName(source):
-       s3_path = source[len("s3://"):]
+       s3_path = source[len("s3://" + MINIO_URL + "/"):]
        s3_list = s3_path.split('/')
        object_name = s3_list[len(s3_list)-1]
        return os.path.splitext(object_name)[0]
     
     def getFileExtension(source):
-       s3_path = source[len("s3://"):]
+       s3_path = source[len("s3://" + MINIO_URL + "/"):]
        s3_list = s3_path.split('/')
        object_name = s3_list[len(s3_list)-1]
        extension = os.path.splitext(object_name)[1]
@@ -345,7 +345,7 @@ def pistis_job_periodic():
        evaluable_attrs = ['dataset_name','dataset_description', 'insights'] ## Add  meta fields to be evaluated
        ds_title = "Pistis Dataset"
        ds_description = "Pistis Dataset"
-       s3_path = source[len("s3://"):]
+       s3_path = source[len("s3://" + MINIO_URL + "/"):]
        s3_list = s3_path.split('/')
        index = len(s3_list) - 2
        insightsURL = "none"
@@ -854,7 +854,7 @@ def pistis_job_periodic():
                 if (field['name'] in evaluable_attrs):
                     file_name = "airflow_dataset:_" + run_id
                     if (field_value.startswith("s3://")):
-                        field_value = field_value[len("s3://"):]
+                        field_value = field_value[len("s3://" + MINIO_URL + "/"):]
                         s3_list = field_value.split('/')
                         if (len(s3_list) > 0):
                             bucket_name = s3_list[0]

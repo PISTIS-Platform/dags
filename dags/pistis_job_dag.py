@@ -194,7 +194,7 @@ def pistis_job_template():
     def add_dataset_to_factory_data_storage(source, uuid, access_token):
         logging.info(" ### Adding dataset to Factory Data Storage using source: " + source)
         file=[]
-        s3_path = source[len("s3://"):]
+        s3_path = source[len("s3://" + MINIO_URL + "/"):]
         s3_list = s3_path.split('/')
         index = len(s3_list) - 2
         if (len(s3_list) > 0):
@@ -264,7 +264,7 @@ def pistis_job_template():
         object_url = field_value
 
         persist_required = False
-        s3_path = source[len("s3://"):]
+        s3_path = source[len("s3://" + MINIO_URL + "/"):]
         s3_list = s3_path.split('/')
         index = len(s3_list) - 2
         if (len(s3_list) > 0):
@@ -286,19 +286,19 @@ def pistis_job_template():
 
             # Put  data in the bucket
             result = client.put_object(MINIO_BUCKET_NAME, object_name, data=BytesIO(encoded_data), length=len(encoded_data)) 
-            object_url = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
+            object_url = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + result.object_name
             logging.info(" ### Object persisted in MINIO. URL: " + object_url)    
         
         return object_url 
 
     def update_workflow_status(status, message, runId):
        json_wf = { "runId": runId, "status": status, "catalogue_dataset_endpoint": "none", "message": message }
-       wf_s3_endpoint =  "s3://" + MINIO_BUCKET_NAME + "/" + runId + ".json"
+       wf_s3_endpoint =  "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + runId + ".json"
        persist_in_minio(json_wf, wf_s3_endpoint)
 
 
     def getFileExtension(source):
-       s3_path = source[len("s3://"):]
+       s3_path = source[len("s3://" + MINIO_URL + "/"):]
        s3_list = s3_path.split('/')
        object_name = s3_list[len(s3_list)-1]
        extension = os.path.splitext(object_name)[1]
@@ -310,7 +310,7 @@ def pistis_job_template():
        evaluable_attrs = ['dataset_name','dataset_description', 'insights'] ## Add  meta fields to be evaluated
        ds_title = "Pistis Dataset"
        ds_description = "Pistis Dataset"
-       s3_path = source[len("s3://"):]
+       s3_path = source[len("s3://" + MINIO_URL + "/"):]
        s3_list = s3_path.split('/')
        index = len(s3_list) - 2
        insightsURL = "none"
@@ -584,7 +584,7 @@ def pistis_job_template():
 
                     # Initialze JSON workflow resukts 
                     # wf_results = { "runId": root_run_id, "status": "executing", "catalogue_dataset_endpoint": "none" }
-                    # wf_s3_endpoint =  "s3://" + MINIO_BUCKET_NAME + "/" + root_run_id + ".json"
+                    # wf_s3_endpoint =  "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + root_run_id + ".json"
                     # persist_in_minio(wf_results, wf_s3_endpoint)
 
                     # Retrieving dataset
@@ -621,7 +621,7 @@ def pistis_job_template():
                     result = client.put_object(MINIO_BUCKET_NAME, file_name + "_jc" + root_run_id + "_jc" + extension, data=BytesIO(decoded_data), length=len(decoded_data)) 
                     
                     # update source using minio uri
-                    job_info["source"] = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
+                    job_info["source"] = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + result.object_name
 
                     # Put metedata in a bucket
                     #result = client.put_object(MINIO_BUCKET_NAME, file_name + "_meta." + root_run_id + ".json", data=BytesIO(json_meta_encode_data), length=len(json_meta_encode_data)) 
@@ -819,7 +819,7 @@ def pistis_job_template():
                 if (field['name'] in evaluable_attrs):
                     file_name = "airflow_dataset:_" + run_id
                     if (field_value.startswith("s3://")):
-                        field_value = field_value[len("s3://"):]
+                        field_value = field_value[len("s3://" + MINIO_URL + "/"):]
                         s3_list = field_value.split('/')
                         if (len(s3_list) > 0):
                             bucket_name = s3_list[0]
@@ -862,7 +862,7 @@ def pistis_job_template():
 
             #update source with last version of ds
             logging.info(" ### Updating source with last version of ds .... ")
-            #job_info["source"] = "s3://" + MINIO_BUCKET_NAME + "/" + result.object_name
+            #job_info["source"] = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + result.object_name
 
             dataset_field_path = job_info["response_dataset_field_path"]
             if (not dataset_field_path == "") and (not dataset_field_path.isspace()) and (dataset_field_path.strip().lower() != "none"): 
@@ -899,13 +899,13 @@ def pistis_job_template():
                     if (meta_field_path.strip().lower() == "html"):  
                         res_val = res.content.decode('utf-8')
                         json_s3_name = endpoint[len("http://"):]
-                        s3_full_name = "s3://" + MINIO_BUCKET_NAME + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".html"
+                        s3_full_name = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".html"
                         json_res_val = persist_in_minio(res_val, s3_full_name)   
                     
                     elif (meta_field_path.strip().lower() == "json"):
                         json_res_val = res.json()
                         json_s3_name = endpoint[len("http://"):]
-                        s3_full_name = "s3://" + MINIO_BUCKET_NAME + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".json"
+                        s3_full_name = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + json_s3_name.split('.')[0] + "_request_" + run_id + ".json"
                         json_res_val = persist_in_minio(json_res_val, s3_full_name)
 
                     else: 
@@ -1067,7 +1067,7 @@ def pistis_job_template():
                     
                 ds_catalogue_url = {'id': job_info["uuid"]} # DATA_CATALOGUE_URL + "/datasets/" + job_info["uuid"]
                 wf_results = { "runId": wf_results_id, "status": "finished", "catalogue_dataset_endpoint": ds_catalogue_url }
-                wf_s3_endpoint =  "s3://" + MINIO_BUCKET_NAME + "/" + root_run_id + ".json"
+                wf_s3_endpoint =  "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + root_run_id + ".json"
                 persist_in_minio(wf_results, wf_s3_endpoint)
                 
             return job_info 
