@@ -756,7 +756,7 @@ def pistis_job_periodic():
                                     if (job_name == current_job_name):
                                         job_data = job_info
                                     else:
-                                        job_data = task_result    
+                                        job_data = task_meta_result    
                                     
                                     for attr in map_list:
                                         logging.info("pistis_periodic_workflow#resolve_mappings: Mapping List -> attr = " + str(attr))
@@ -1015,7 +1015,7 @@ def pistis_job_periodic():
                 logging.info(" pistis_job_periodic#requires_append_data: Appended DS got it from Factory storage ...")
 
                 # Rename file to JC naming 
-                job_info["source"] = getFileName(job_info["source"]) + "_jc" + root_run_id + "_jc" + getFileExtension(job_info["source"])    
+                job_info["source"] = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + getFileName(job_info["source"]) + "_jc" + root_run_id + "_jc" + getFileExtension(job_info["source"])    
                 
                 # update source using minio uri
                 logging.info(" pistis_job_periodic#Persisting Resuls in Minio ... ")
