@@ -347,7 +347,8 @@ def pistis_periodic_workflow():
                     uuid = prev_job_data['uuid']
                     data_uuid = prev_job_data['data_uuid']
         else:
-           uuid= context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['uuid'],
+           logging.info("pistis_periodic_workflow#generate_conf_for_job_dag: Updating UUID and DATA_UUID from current job = " + str(context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')))
+           uuid= context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['uuid']
            data_uuid= context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['data_uuid']            
 
 
