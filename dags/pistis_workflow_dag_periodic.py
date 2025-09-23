@@ -338,6 +338,19 @@ def pistis_periodic_workflow():
                 trigger_run_id = ti.xcom_pull(task_ids='triggerDagRunOperator', key='trigger_run_id')
                 prev_run_updated = prev_job_name + "#" + trigger_run_id
 
+                #Update in current job uuid and data_uuid from previoues job
+                dr_list = DagRun.find(dag_id="pistis_job_periodic", run_id=trigger_run_id)
+                if (len(dr_list) > 0):
+                    ti = dr_list[0].get_task_instance(task_id='storage')
+                    prev_job_data = ti.xcom_pull(task_ids='storage', key='return_value')
+                    logging.info("pistis_periodic_workflow#generate_conf_for_job_dag: Updating UUID and DATA_UUID from job = " + str(prev_job_name))
+                    uuid = prev_job_data['uuid']
+                    data_uuid = prev_job_data['data_uuid']
+        else:
+           uuid= context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['uuid'],
+           data_uuid= context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['data_uuid']            
+
+
         conf_params={
              "job_data": {
                  "prev_run": prev_run_updated,
@@ -356,8 +369,8 @@ def pistis_periodic_workflow():
                  #"lineage_tracking": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['lineage_tracking']
                  "is_last_job": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['is_last_job'],
                  "access_token": context["params"]["access_token"],
-                 "uuid": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['uuid'],
-                 "data_uuid": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['data_uuid']
+                 "uuid": uuid,
+                 "data_uuid": data_uuid
                  }
              }
 

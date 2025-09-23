@@ -202,6 +202,8 @@ def pistis_job_template():
             object_name = s3_list[index + 1]
             logging.info(" ### Getting S3 Object with bucket = " + bucket_name + " and object_name = " + object_name)
             file = client.get_object(bucket_name,object_name)
+
+            if (encryption):
             #res_file = "proc_" + re.sub(r'\.[^.]+$', raw_extension, object_name)
             #tokens = object_name.split('.')
             #extension = "." + tokens[-1]
@@ -260,7 +262,6 @@ def pistis_job_template():
     
     def persist_in_minio(field_value, source):
         logging.info(" ### Persisting object in MINIO ... ")
-        logging.info(" ### FIELD_VALUE:  " + str(field_value))
         object_url = field_value
 
         persist_required = False

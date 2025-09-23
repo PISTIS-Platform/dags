@@ -228,17 +228,17 @@ def pistis_job_periodic():
                   }
         if (uuid == "none"):
             endpoint = DATA_STORAGE_URL + "/api/files/create_file"
-            logging.info(" pistis_job_template#add_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+            logging.info(" pistis_job_periodic#add_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
             res = requests.post(url=endpoint, headers=headers, data=payload, files=files)
         else:
 
            if (append_required):
               endpoint = DATA_STORAGE_URL + "/api/files/append_files?asset_uuid=" + uuid 
-              logging.info(" pistis_job_template#append_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+              logging.info(" pistis_job_periodic#append_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
               res = requests.post(url=endpoint, headers=headers, data=payload, files=files) 
            else:
               endpoint = DATA_STORAGE_URL + "/api/files/update_file?asset_uuid=" + uuid 
-              logging.info(" pistis_job_template#update_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+              logging.info(" pistis_job_periodic#update_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
               res = requests.put(url=endpoint, headers=headers, data=payload, files=files)
               json_res = res.json()
               asset_uuid = json_res['asset_uuid']  
@@ -259,7 +259,7 @@ def pistis_job_periodic():
                   }
         
         endpoint = ds_path
-        logging.info(" pistis_job_template#get_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        logging.info(" pistis_job_periodic#get_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
         res = requests.get(url=endpoint, headers=headers, data=payload)
              
         logging.info(" ### get_dataset_to_factory_data_storage request: " + str(res))
@@ -280,7 +280,7 @@ def pistis_job_periodic():
                   }
         endpoint = DATA_REPO_URL + "/catalogues/" + CATALOG_NAME + "/datasets"
             
-        logging.info(" pistis_job_template#add_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        logging.info(" pistis_job_periodic#add_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
         
         res = requests.post(url=endpoint, headers=headers, data=payload, files=files)
         logging.info(" ### add_dataset_to_factory_data_catalogue request: " + str(res))
@@ -289,7 +289,6 @@ def pistis_job_periodic():
     
     def persist_in_minio(field_value, source):
         logging.info(" ### Persisting object in MINIO ... ")
-        logging.info(" ### FIELD_VALUE:  " + str(field_value))
         object_url = field_value
 
         persist_required = False
@@ -341,7 +340,7 @@ def pistis_job_periodic():
 
     def generate_dataset_json_ld(source, metadata, uuid_url, extension):
        
-       logging.info(" pistis_job_template#generate_dataset_json_ld: Starting json ld generation ... ") 
+       logging.info(" pistis_job_periodic#generate_dataset_json_ld: Starting json ld generation ... ") 
        evaluable_attrs = ['dataset_name','dataset_description', 'insights'] ## Add  meta fields to be evaluated
        ds_title = "Pistis Dataset"
        ds_description = "Pistis Dataset"
@@ -356,7 +355,7 @@ def pistis_job_periodic():
            object_name = s3_list[index + 1]
            stat = client.stat_object(bucket_name, object_name)
 
-       logging.info(" pistis_job_template#generate_dataset_json_ld: Evaluating metadata ... ") 
+       logging.info(" pistis_job_periodic#generate_dataset_json_ld: Evaluating metadata ... ") 
        for meta_field in metadata.keys():
            logging.info(" ### metadata = " + meta_field + " and value = " + metadata[meta_field]) 
            if (meta_field in evaluable_attrs):
@@ -386,12 +385,12 @@ def pistis_job_periodic():
                        "file_type": extension
                       }
        template = json.loads(DATASET_JSON_LD_TEMPLATE)
-       logging.info(" pistis_job_template#generate_dataset_json_ld: TEMPLATE GENERATED = " + str(template)) 
+       logging.info(" pistis_job_periodic#generate_dataset_json_ld: TEMPLATE GENERATED = " + str(template)) 
        return jsoninja.replace(template, replacements)
 
  
     def generate_json_ld_data_distribution(access_url, extension):      
-       logging.info(" pistis_job_template#generate_dataset_json_ld: Starting json ld generation ... ") 
+       logging.info(" pistis_job_periodic#generate_dataset_json_ld: Starting json ld generation ... ") 
        
        ds_title = "Additional Distribution - "                  
        date = datetime.utcnow().isoformat()
@@ -403,11 +402,11 @@ def pistis_job_periodic():
                        "file_type": extension
                       }
        template = json.loads(DATASET_JSON_LD_DATA_DISTRIBUTION_TEMPLATE)
-       logging.info(" pistis_job_template#generate_json_ld_data_distribution: TEMPLATE GENERATED = " + str(template)) 
+       logging.info(" pistis_job_periodic#generate_json_ld_data_distribution: TEMPLATE GENERATED = " + str(template)) 
        return jsoninja.replace(template, replacements)
         
     def notify_access_policy(uuid, name, description, access_token):
-       logging.info(" pistis_job_template#notify_access_policy: Calling to IAM to notify access policy for DS with UUID = " + str(uuid))
+       logging.info(" pistis_job_periodic#notify_access_policy: Calling to IAM to notify access policy for DS with UUID = " + str(uuid))
        payload = {
             "id": uuid,
             "name": name,
@@ -421,14 +420,14 @@ def pistis_job_periodic():
        
        endpoint = IAM_URL 
             
-       logging.info(" pistis_job_template#notify_access_policy: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+       logging.info(" pistis_job_periodic#notify_access_policy: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
         
        res = requests.post(url=endpoint, headers=headers, json=payload)
-       logging.info(" ### pistis_job_template#notify_access_policy  Response: " + str(res))
+       logging.info(" ### pistis_job_periodic#notify_access_policy  Response: " + str(res))
        return res 
     
     def add_distribution_to_data_catalogue(uuid, ds_json_ld, access_token):
-       logging.info(" pistis_job_template#add_distribution_to_data_catalogue: Adding distribution to DS with UUID = " + str(uuid))
+       logging.info(" pistis_job_periodic#add_distribution_to_data_catalogue: Adding distribution to DS with UUID = " + str(uuid))
 
        payload = json.dumps(ds_json_ld)
             
@@ -439,18 +438,18 @@ def pistis_job_periodic():
                   }
        endpoint = DATA_REPO_URL + "/datasets/" + uuid + "/distributions" 
             
-       logging.info(" pistis_job_template#add_distribution_to_data_catalogue: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+       logging.info(" pistis_job_periodic#add_distribution_to_data_catalogue: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
         
        res = requests.post(url=endpoint, headers=headers, data=payload)
-       logging.info(" ### pistis_job_template#add_distribution_to_data_catalogue  Response: " + str(res))
+       logging.info(" ### pistis_job_periodic#add_distribution_to_data_catalogue  Response: " + str(res))
        return res
 
     def update_value(data, key_to_match, new_value):
-        #logging.info(" ### pistis_job_template#update_value: KEY_TO_MATCH = " + key_to_match)
+        #logging.info(" ### pistis_job_periodic#update_value: KEY_TO_MATCH = " + key_to_match)
         if isinstance(data, dict):
             for key, value in data.items():
                 if key_to_match in key:
-                    #logging.info(" ### pistis_job_template#update_value: KEY = " + key + "; VALUE = " + new_value)
+                    #logging.info(" ### pistis_job_periodic#update_value: KEY = " + key + "; VALUE = " + new_value)
                     if (isinstance(value, (dict))):
                       data[key]["@value"] = new_value
                     else:
@@ -463,7 +462,7 @@ def pistis_job_periodic():
 
     def update_metadata_in_data_catalogue(uuid, metadata, access_token):
         # TO-DO define catalogue name as input
-        logging.info(" pistis_job_template#update_metadata_in_data_catalogue: Updating dataset to Factory Data Catalogue with ID = " + uuid)
+        logging.info(" pistis_job_periodic#update_metadata_in_data_catalogue: Updating dataset to Factory Data Catalogue with ID = " + uuid)
 
         payload = [] # json.dumps(ds_json_ld)
             
@@ -474,11 +473,11 @@ def pistis_job_periodic():
                   }
         endpoint = DATA_REPO_URL + "/datasets/" + uuid
             
-        logging.info(" pistis_job_template#update_metadata_in_data_catalogue: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        logging.info(" pistis_job_periodic#update_metadata_in_data_catalogue: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
         
         res = requests.get(url=endpoint, headers=headers, data=payload)
 
-        logging.info(" ### pistis_job_template#add_distribution_to_data_catalogue  Response: " + str(res))
+        logging.info(" ### pistis_job_periodic#add_distribution_to_data_catalogue  Response: " + str(res))
 
         ds_json = res.json()
         for meta_field in metadata.keys():
@@ -496,11 +495,11 @@ def pistis_job_periodic():
                   }
         endpoint = DATA_REPO_URL + "/datasets/" + uuid
             
-        logging.info(" pistis_job_template#update_metadata_in_data_catalogue: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        logging.info(" pistis_job_periodic#update_metadata_in_data_catalogue: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
         
         res = requests.put(url=endpoint, headers=headers, data=payload)
 
-        logging.info(" ### pistis_job_template#add_distribution_to_data_catalogue  Response: " + str(res))
+        logging.info(" ### pistis_job_periodic#add_distribution_to_data_catalogue  Response: " + str(res))
         return res
 
 
@@ -546,8 +545,8 @@ def pistis_job_periodic():
 
     def transform_ds_format(file, converted_file, extension, output_format):
         
-        #logging.info(" ### pistis_job_template#transform_to_csv: Evaluating file format for conversion to CSV ")
-        logging.info(" ### pistis_job_template#transform_to_csv: Converting file from " + extension + " to " + output_format)
+        #logging.info(" ### pistis_job_periodic#transform_to_csv: Evaluating file format for conversion to CSV ")
+        logging.info(" ### pistis_job_periodic#transform_to_csv: Converting file from " + extension + " to " + output_format)
         if extension.lower() == JSON:           
            with open(file, encoding='utf-8') as inputfile:
               df = pd.read_json(inputfile)
@@ -615,7 +614,7 @@ def pistis_job_periodic():
                 ds_description = dr_list[0].conf['dataset_description']
 
                 if (source == "workflow"):
-                    logging.info(" pistis_job_template#retrieve: Retrievind data and metadata from workflow ... ") 
+                    logging.info(" pistis_job_periodic#retrieve: Retrievind data and metadata from workflow ... ") 
 
                     # Initialze JSON workflow resukts 
                     # wf_results = { "runId": root_run_id, "status": "executing", "catalogue_dataset_endpoint": "none" }
@@ -666,10 +665,10 @@ def pistis_job_periodic():
 
                 elif (source == "job"):
                     # To Do -> use source and auth info to retrieve data source
-                    logging.info(" pistis_job_template#retrieve: Retrievind data internally from job ... ")       
+                    logging.info(" pistis_job_periodic#retrieve: Retrievind data internally from job ... ")       
                 elif (is_valid_url(source)):
                     # To Do -> use source and auth info to retrieve data source
-                    logging.info(" pistis_job_template#retrieve: Retrievind data from url (data path)" + str(source)) 
+                    logging.info(" pistis_job_periodic#retrieve: Retrievind data from url (data path)" + str(source)) 
 
 
                 # Update metadata using wf inputs
@@ -704,7 +703,7 @@ def pistis_job_periodic():
                 if (prev_job_name != 'none'):
 
                     logging.info("pistis_periodic_workflow#resolve_mappings: Dag Run_Id = " + str(prev_run_id)) 
-                    dr_list = DagRun.find(dag_id="pistis_job_template", run_id=prev_run_id)
+                    dr_list = DagRun.find(dag_id="pistis_job_periodic", run_id=prev_run_id)
                     logging.info("pistis_periodic_workflow#resolve_mappings: DR List = " + str(len(dr_list))) 
                     
                     if (len(dr_list) > 0):
@@ -846,7 +845,7 @@ def pistis_job_periodic():
 
             # Build json data from job input data
             for field in input_data:
-                logging.info(" pistis_job_template#callService: Calling Service with: Field = " + str(field))
+                logging.info(" pistis_job_periodic#callService: Calling Service with: Field = " + str(field))
                 field_value = field['value']
                 if (type(field_value) is str):
                         field_value = field_value.replace("'", "\"")
@@ -875,7 +874,7 @@ def pistis_job_periodic():
                   data[field['name']] = field_value
                 
             
-            logging.info(" pistis_job_template#callService: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; method = " + str(method) + "; data = " + str(data))
+            logging.info(" pistis_job_periodic#callService: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; method = " + str(method) + "; data = " + str(data))
             if (method.lower() == "post" ):
               res = requests.post(url=endpoint,headers=headers,data=data, files=files)
             elif (method.lower() == "get" ):
@@ -884,7 +883,7 @@ def pistis_job_periodic():
               res = requests.put(url=endpoint,headers=headers,data=data, files=files)
             elif (method.lower() == "delete" ):
               res = requests.delete(url=endpoint,headers=headers,data=data)      
-            logging.info(" pistis_job_template#callService: Service Reponse: " + str(res) ) 
+            logging.info(" pistis_job_periodic#callService: Service Reponse: " + str(res) ) 
             
             # Turns your json dict into a str
             #json_res = json.dumps(res.json())  
@@ -962,7 +961,7 @@ def pistis_job_periodic():
     
        
     def register_default_access_policy(uuid, ds_name, ds_desc, access_token):
-        logging.info("### pistis_job_template#register_default_access_policy: Registering default access policy ... ")
+        logging.info("### pistis_job_periodic#register_default_access_policy: Registering default access policy ... ")
 
         ## Get Access Token
         #access_token = get_access_token()
@@ -1005,38 +1004,38 @@ def pistis_job_periodic():
             #if (lineage_tracking or (destination_type == "factory_storage")):
             if requires_append_data(service_endpoint):
                 # Store data asset in factory storage
-                logging.info(" pistis_job_template#requires_append_data: Appending data in factory storage ... ")
+                logging.info(" pistis_job_periodic#requires_append_data: Appending data in factory storage ... ")
                 data_uuid = add_dataset_to_factory_data_storage(source, job_info["data_uuid"], access_token, True)
-                logging.info(" pistis_job_template#requires_append_data: Persited with DATA_UUID " + str(data_uuid))
+                logging.info(" pistis_job_periodic#requires_append_data: Persited with DATA_UUID " + str(data_uuid))
 
                 ds_path_url = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(data_uuid)
                 res = get_dataset_to_factory_data_storage(ds_path_url, access_token)
 
                 
-                logging.info(" pistis_job_template#requires_append_data: Appended DS got it from Factory storage ...")
+                logging.info(" pistis_job_periodic#requires_append_data: Appended DS got it from Factory storage ...")
 
                 # Rename file to JC naming 
                 job_info["source"] = getFileName(job_info["source"]) + "_jc" + root_run_id + "_jc" + getFileExtension(job_info["source"])    
                 
                 # update source using minio uri
-                logging.info(" pistis_job_template#Persisting Resuls in Minio ... ")
+                logging.info(" pistis_job_periodic#Persisting Resuls in Minio ... ")
                 object_url = persist_in_minio(res.content.decode('utf-8'), job_info["source"])
                 
-                logging.info(" pistis_job_template#requires_append_data: Persited with DATA_UUID " + str(data_uuid))
+                logging.info(" pistis_job_periodic#requires_append_data: Persited with DATA_UUID " + str(data_uuid))
 
                 # Store metadata in factory data catalogue using uuid got it from data storage                            
-                logging.info(" pistis_job_template#requires_append_data: Updating metadata in data catalogue: modified and size ... ") 
+                logging.info(" pistis_job_periodic#requires_append_data: Updating metadata in data catalogue: modified and size ... ") 
                 
                 metadata_to_update = {"modified": datetime.utcnow().isoformat(), "byteSize": str(len(res.content))}
                 update_metadata_in_data_catalogue(job_info["uuid"], metadata_to_update, access_token)
-                logging.info(" pistis_job_template#requires_append_data: Metadata updated in the Catalogue for DS with uuui: "+ job_info["uuid"])
+                logging.info(" pistis_job_periodic#requires_append_data: Metadata updated in the Catalogue for DS with uuui: "+ job_info["uuid"])
 
             if requires_add_data_distribution(service_endpoint):
 
                 #TO-DO: Delete previous data distributions 
 
                 # Add data distribution to DS in the catalogue 
-                logging.info(" pistis_job_template#requires_access_policy_notification: Adding data distribution in data catalogue ... ")
+                logging.info(" pistis_job_periodic#requires_access_policy_notification: Adding data distribution in data catalogue ... ")
 
                 prev_run_list = prev_run.split('#')
                 if (len(prev_run_list) > 0):
@@ -1044,7 +1043,7 @@ def pistis_job_periodic():
                     prev_run_id = prev_run_list[1]
 
                     if (prev_job_name != 'none'):
-                        dr_list = DagRun.find(dag_id="pistis_job_template", run_id=prev_run_id)
+                        dr_list = DagRun.find(dag_id="pistis_job_periodic", run_id=prev_run_id)
                         logging.info("pistis_periodic_workflow#requires_add_data_distribution: DR List = " + str(len(dr_list))) 
                         
                         if (len(dr_list) > 0):
@@ -1059,18 +1058,18 @@ def pistis_job_periodic():
                             job_info["data_uuid"] = task_result['data_uuid']
 
                 if ("uuid" in job_info.keys()): 
-                    logging.info(" pistis_job_template#requires_add_data_distribution: Storing data in factory storage ... ")
+                    logging.info(" pistis_job_periodic#requires_add_data_distribution: Storing data in factory storage ... ")
                     new_uuid = add_dataset_to_factory_data_storage(source, job_info["data_uuid"], access_token, False)
-                    logging.info(" pistis_job_template#requires_add_data_distribution: Added DS with UUID = " + str(new_uuid))
+                    logging.info(" pistis_job_periodic#requires_add_data_distribution: Added DS with UUID = " + str(new_uuid))
                     accessURL = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(new_uuid)
                     json_ld = generate_json_ld_data_distribution(accessURL, extension)
-                    logging.info(" pistis_job_template#requires_add_data_distribution: Adding data distribution ... ")           
+                    logging.info(" pistis_job_periodic#requires_add_data_distribution: Adding data distribution ... ")           
                     add_distribution_to_data_catalogue(job_info["uuid"], json_ld, access_token)
-                    logging.info(" pistis_job_template#requires_add_data_distribution: Data distribution added ... ")
+                    logging.info(" pistis_job_periodic#requires_add_data_distribution: Data distribution added ... ")
 
             if (requires_only_metadata_update(service_endpoint)):
                 # Add data distribution to DS in the catalogue 
-                logging.info(" pistis_job_template#requires_only_metadata_update: Update only metadata in data catalogue ... ")
+                logging.info(" pistis_job_periodic#requires_only_metadata_update: Update only metadata in data catalogue ... ")
                 # Store metadata in factory data catalogue using uuid got it from data storage
                 prev_run_list = prev_run.split('#')
                 if (len(prev_run_list) > 0):
@@ -1078,7 +1077,7 @@ def pistis_job_periodic():
                     prev_run_id = prev_run_list[1]
 
                     if (prev_job_name != 'none'):
-                        dr_list = DagRun.find(dag_id="pistis_job_template", run_id=prev_run_id)
+                        dr_list = DagRun.find(dag_id="pistis_job_periodic", run_id=prev_run_id)
                         logging.info("pistis_periodic_workflow#requires_only_metadata_update: DR List = " + str(len(dr_list))) 
                         
                         if (len(dr_list) > 0):
@@ -1096,12 +1095,12 @@ def pistis_job_periodic():
                     logging.info(" pistis_periodic_workflow#requires_only_metadata_update: Updating metadata in Factory Data Catalogue using UUID = " + job_info["uuid"])
                     #uuid = add_dataset_to_factory_data_storage(source)
                     uuid = job_info["uuid"]
-                    #logging.info(" pistis_job_template#requires_only_metadata_update: Added DS with UUID = " + uuid)
+                    #logging.info(" pistis_job_periodic#requires_only_metadata_update: Added DS with UUID = " + uuid)
                     #ds_path_url = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + uuid
                     #ds_json_ld = generate_dataset_json_ld(source, metadata, ds_path_url)
-                    logging.info(" pistis_job_template#requires_only_metadata_update: Updating metadata in data catalogue ... ") 
+                    logging.info(" pistis_job_periodic#requires_only_metadata_update: Updating metadata in data catalogue ... ") 
                     update_metadata_in_data_catalogue(job_info["uuid"], metadata, access_token)
-                    logging.info(" pistis_job_template#requires_only_metadata_update: Metadata updated ... ") 
+                    logging.info(" pistis_job_periodic#requires_only_metadata_update: Metadata updated ... ") 
 
             # Update JSON workflow resukts 
             if (last_job):
