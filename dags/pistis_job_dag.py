@@ -203,17 +203,7 @@ def pistis_job_template():
             logging.info(" ### Getting S3 Object with bucket = " + bucket_name + " and object_name = " + object_name)
             file = client.get_object(bucket_name,object_name)
 
-            if (encryption):
-            #res_file = "proc_" + re.sub(r'\.[^.]+$', raw_extension, object_name)
-            #tokens = object_name.split('.')
-            #extension = "." + tokens[-1]
-
-            #logging.info(" ### Checking dataset extension =>  " + extension)
-            
-            #if (extension.lower() != raw_extension):
-            #    transform_ds_format(file, res_file, extension.lower(), raw_extension)
-            #else:
-            #    res_file = file    
+            # TO-DO => ADD ENCRYTION CALL   
 
             files=[
                    #('file',(re.sub(r'\.[^.]+$', '', object_name), res_file,'rb'))
