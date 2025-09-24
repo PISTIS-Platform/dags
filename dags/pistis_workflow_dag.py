@@ -320,7 +320,9 @@ def pistis_workflow_template():
         prev_run_updated = prev_run
         prev_run_list = prev_run.split('#')
         prev_job_name = "none"
-        wf_res_id = job_data['wf_results_id'] 
+        wf_res_id = job_data['wf_results_id']
+        encryption = context["params"]["encryption"]
+        periodicity = context["params"]["periodicity"]
 
         if (len(prev_run_list) > 0):
             prev_job_name = prev_run_list[0]
@@ -356,7 +358,9 @@ def pistis_workflow_template():
                  "response_metadata_field_path": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['response_metadata_field_path'],
                  #"lineage_tracking": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['lineage_tracking']
                  "is_last_job": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['is_last_job'],
-                 "access_token": context["params"]["access_token"]
+                 "access_token": context["params"]["access_token"],
+                 "encryption": encryption,
+                 "periodicity": periodicity
                  }
              }
 
@@ -405,11 +409,6 @@ def pistis_workflow_template():
         context = get_current_context()
         logging.info("### pistis_workflow_template.workflow: wf = "+ str(context["params"]["workflow"]) + " type = " + str(type(context["params"]["workflow"])))
         return context["params"]["workflow"] 
-    
-    @task()
-    def get_periodicity():
-        context = get_current_context()
-        return context["params"]["periodicity"] 
         
     @task.branch
     def check_pending_jobs():
@@ -492,16 +491,6 @@ def pistis_workflow_template():
             
             return start_time.isoformat()
         
-        def clean_data(data):
-            if isinstance(data, StrictUndefined):
-                return None  # or str(data)
-            elif isinstance(data, dict):
-                return {k: clean_data(v) for k, v in data.items()}
-            elif isinstance(data, list):
-                return [clean_data(item) for item in data]
-            else:
-                return data
-
 
         # Self-trigger & Looping in DAG to execute pending jobs
         triggering_pistis_periodic_workflow = TriggerDagRunOperator(
@@ -527,7 +516,7 @@ def pistis_workflow_template():
     self_triggering_pistis_workflow = TriggerDagRunOperator(
             task_id='self_triggering_pistis_workflow',
             trigger_dag_id='pistis_workflow_template',
-            conf={"periodicity": "{{ ti.xcom_pull(task_ids='get_periodicity', key='return_value') }}", "workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.access_token }}" },
+            conf={"encryption": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.encryption }}", "periodicity": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.periodicity }}", "workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.access_token }}" },
             wait_for_completion=True,
             poke_interval=10,
             #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
@@ -542,7 +531,7 @@ def pistis_workflow_template():
     #check_pending_jobs.set_upstream(get_current_workflow) >> self_triggering_pistis_workflow
     #check_pending_jobs.set_upstream(get_current_workflow) >> build_periodic_workflow() >> check_periodicity_type() >> [triggering_pistis_workflow_hourly, triggering_pistis_workflow_daily, triggering_pistis_workflow_monthly]
     #check_pending_jobs.set_upstream(get_current_workflow) >> skip_self_triggering
-    get_job_from_workflow() >> generate_conf_for_job_dag() >> trigger_pistis_job >> get_current_workflow() >> get_periodicity() >> check_pending_jobs() >> [self_triggering_pistis_workflow, periodic_group(), skip_self_triggering]
+    get_job_from_workflow() >> generate_conf_for_job_dag() >> trigger_pistis_job >> get_current_workflow() >> check_pending_jobs() >> [self_triggering_pistis_workflow, periodic_group(), skip_self_triggering]
 
         
 pistis_workflow_template()

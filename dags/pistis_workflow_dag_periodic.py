@@ -320,7 +320,8 @@ def pistis_periodic_workflow():
         prev_run_list = prev_run.split('#')
         prev_job_name = "none"
         wf_res_id = job_data['wf_results_id']
-        encryption = context["params"]["encryption"] 
+        encryption = context["params"]["encryption"]
+        periodicity = context["params"]["periodicity"] 
 
         if (len(prev_run_list) > 0):
             prev_job_name = prev_run_list[0]
@@ -373,7 +374,8 @@ def pistis_periodic_workflow():
                  "access_token": context["params"]["access_token"],
                  "uuid": uuid,
                  "data_uuid": data_uuid,
-                 "encryption": encryption
+                 "encryption": encryption,
+                 "periodicity": periodicity
                  }
              }
 
