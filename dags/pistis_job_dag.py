@@ -221,8 +221,9 @@ def pistis_job_template():
             file = client.get_object(bucket_name,object_name)
 
             # Check if it is needed encrypt the DS 
-            if (encryption):
-                file = encrypt_dataset(object_name, file, access_token)  
+            if (encryption.strip().lower() == "true"):
+                res = encrypt_dataset(object_name, file, access_token)  
+                file = res.content.decode('utf-8')
 
             files=[
                    #('file',(re.sub(r'\.[^.]+$', '', object_name), res_file,'rb'))
