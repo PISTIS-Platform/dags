@@ -319,7 +319,8 @@ def pistis_periodic_workflow():
         prev_run_updated = prev_run
         prev_run_list = prev_run.split('#')
         prev_job_name = "none"
-        wf_res_id = job_data['wf_results_id'] 
+        wf_res_id = job_data['wf_results_id']
+        encryption = context["params"]["encryption"] 
 
         if (len(prev_run_list) > 0):
             prev_job_name = prev_run_list[0]
@@ -371,7 +372,8 @@ def pistis_periodic_workflow():
                  "is_last_job": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['is_last_job'],
                  "access_token": context["params"]["access_token"],
                  "uuid": uuid,
-                 "data_uuid": data_uuid
+                 "data_uuid": data_uuid,
+                 "encryption": encryption
                  }
              }
 
@@ -418,11 +420,6 @@ def pistis_periodic_workflow():
         context = get_current_context()
         logging.info("### pistis_periodic_workflow.workflow: wf = "+ str(context["params"]["workflow"]) + " type = " + str(type(context["params"]["workflow"])))
         return context["params"]["workflow"] 
-    
-    @task()
-    def get_periodicity():
-        context = get_current_context()
-        return context["params"]["periodicity"] 
         
     @task.branch
     def check_pending_jobs():
@@ -513,7 +510,7 @@ def pistis_periodic_workflow():
     self_triggering_pistis_workflow = TriggerDagRunOperator(
         task_id='self_triggering_pistis_workflow',
         trigger_dag_id='pistis_periodic_workflow',
-        conf={"periodicity": "{{ ti.xcom_pull(task_ids='get_periodicity', key='return_value') }}", "workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.access_token }}" },
+        conf={"encryption": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.encryption }}", "periodicity": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.periodicity }}", "workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.access_token }}" },
         wait_for_completion=True,
         poke_interval=10 
         #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
@@ -524,6 +521,6 @@ def pistis_periodic_workflow():
         task_id = 'skip_self_triggering'
     )
 
-    get_job_from_workflow() >> generate_conf_for_job_dag() >> trigger_pistis_job >> get_current_workflow() >> get_periodicity() >> check_pending_jobs() >> [self_triggering_pistis_workflow, periodic_group(), skip_self_triggering]
+    get_job_from_workflow() >> generate_conf_for_job_dag() >> trigger_pistis_job >> get_current_workflow() >> check_pending_jobs() >> [self_triggering_pistis_workflow, periodic_group(), skip_self_triggering]
         
 pistis_periodic_workflow()

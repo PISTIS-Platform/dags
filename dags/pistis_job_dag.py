@@ -191,7 +191,24 @@ def pistis_job_template():
         #logging.info(" ### format_orginal_ds_name: final name is " + final_name)
         return final_name  
         
-    def add_dataset_to_factory_data_storage(source, uuid, access_token):
+    def encrypt_dataset(dataset_name, dataset_content, access_token):
+        logging.info(" ### Encrypting dataset calling to E/D service ... ")
+
+        files = [('file',(dataset_name, dataset_content,'rb'))]
+        payload = {}            
+        headers = {
+                    "Authorization": "Bearer " + access_token # DATA_STORAGE_API_KEY
+                  }
+        endpoint = "https://develop.pistis-market.eu/srv/encryption-decryption-engine/encrypt"
+            
+        logging.info(" encrypt_dataset: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        
+        res = requests.post(url=endpoint, headers=headers, data=payload, files=files)
+        logging.info(" ### encrypt_dataset request: " + str(res))
+        return res 
+
+
+    def add_dataset_to_factory_data_storage(source, uuid, access_token, encryption):
         logging.info(" ### Adding dataset to Factory Data Storage using source: " + source)
         file=[]
         s3_path = source[len("s3://" + MINIO_URL + "/"):]
@@ -203,7 +220,9 @@ def pistis_job_template():
             logging.info(" ### Getting S3 Object with bucket = " + bucket_name + " and object_name = " + object_name)
             file = client.get_object(bucket_name,object_name)
 
-            # TO-DO => ADD ENCRYTION CALL   
+            # Check if it is needed encrypt the DS 
+            if (encryption):
+                file = encrypt_dataset(object_name, file, access_token)  
 
             files=[
                    #('file',(re.sub(r'\.[^.]+$', '', object_name), res_file,'rb'))
@@ -417,7 +436,7 @@ def pistis_job_template():
             for item in data:
                 update_value(item, key_to_match, new_value)      
 
-    def update_metadata_in_data_catalogue(uuid, metadata, access_token):
+    def update_metadata_in_data_catalogue(uuid, metadata, access_token, encryption):
         # TO-DO define catalogue name as input
         logging.info(" pistis_job_template#update_metadata_in_data_catalogue: Updating dataset to Factory Data Catalogue with ID = " + uuid)
 
@@ -439,7 +458,7 @@ def pistis_job_template():
         ds_json = res.json()
         for meta_field in metadata.keys():
            if (metadata[meta_field].startswith("s3:/")):
-               ds_uuid = add_dataset_to_factory_data_storage(metadata[meta_field], "none", access_token)
+               ds_uuid = add_dataset_to_factory_data_storage(metadata[meta_field], "none", access_token, encryption)
                metadata[meta_field] = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(ds_uuid)
            update_value(ds_json, meta_field, metadata[meta_field])  
 
@@ -900,6 +919,7 @@ def pistis_job_template():
         prev_run = job_info["prev_run"]
         last_job = job_info["is_last_job"]
         access_token = job_info["access_token"]
+        encryption = job_info["encryption"]
         ds_path_url = source
         uuid = 0
         extension = getFileExtension(source)
@@ -911,7 +931,7 @@ def pistis_job_template():
             if requires_access_policy_notification(service_endpoint):
                 # Store data asset in factory storage
                 logging.info(" pistis_job_template#requires_access_policy_notification: Storing data in factory storage ... ")
-                uuid = add_dataset_to_factory_data_storage(source, "none", access_token)
+                uuid = add_dataset_to_factory_data_storage(source, "none", access_token, encryption)
                 ds_path_url = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(uuid)
 
                 # Notify to IAM the default access policy associated to the DS
@@ -953,12 +973,12 @@ def pistis_job_template():
 
                 if ("uuid" in job_info.keys()): 
                     logging.info(" pistis_job_template#requires_add_data_distribution: Storing data in factory storage ... ")
-                    new_uuid = add_dataset_to_factory_data_storage(source, job_info["data_uuid"], access_token)
+                    new_uuid = add_dataset_to_factory_data_storage(source, job_info["data_uuid"], access_token, encryption)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Added DS with UUID = " + str(new_uuid))
                     accessURL = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(new_uuid)
                     json_ld = generate_json_ld_data_distribution(accessURL, extension)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Adding data distribution ... ")           
-                    add_distribution_to_data_catalogue(job_info["uuid"], json_ld, access_token)
+                    add_distribution_to_data_catalogue(job_info["uuid"], json_ld, access_token, encryption)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Data distribution added ... ")
 
             if (requires_only_metadata_update(service_endpoint)):
