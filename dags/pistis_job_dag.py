@@ -159,6 +159,7 @@ def pistis_job_template():
     DATASET_JSON_LD_DATA_DISTRIBUTION_TEMPLATE = Variable.get("factory_dataset_json_ld_data_distribution_template")
     IAM_URL = Variable.get("iam_url")
     AUTH_URL = Variable.get("auth_url")
+    ED_URL = Variable.get("encryption_decryption_url")
     ORCHESTRABLE_SERVICES = ["data-check-in", "data-transformation", "insights-generator"]
     CATALOG_NAME = Variable.get("catalog_name")
     PUBLISHER =  Variable.get("publisher_name")
@@ -199,7 +200,7 @@ def pistis_job_template():
         headers = {
                     "Authorization": "Bearer " + access_token # DATA_STORAGE_API_KEY
                   }
-        endpoint = "https://develop.pistis-market.eu/srv/encryption-decryption-engine/encrypt"
+        endpoint = ED_URL
             
         logging.info(" encrypt_dataset: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
         
