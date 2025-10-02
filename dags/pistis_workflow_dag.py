@@ -133,9 +133,9 @@ from airflow.models import Variable
         "dataset_description": Param("Pistis DataSet", type="string"),
         "access_token": Param("Access Token", type="string"),
         "encryption": Param("Encryption Flag", type="string"),
-        "periodicity": Param("", type="string"),
-        "dataset_category": Param("", type="string"),
-        "dataset_keywords": Param({"key": "value"}, type=["object", "null"]),
+        "periodicity": Param("Periodicity", type="string"),
+        "dataset_category": Param("Category", type="string"),
+        "dataset_keywords":  Param("Keywords", type="string"),,
         "raw_wf": Param(
             [{
                 "prev_run": "000",
