@@ -14,7 +14,7 @@
 
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from airflow.decorators import dag, task
 from airflow.models.param import Param
 from airflow.operators.python import get_current_context
@@ -31,17 +31,17 @@ from minio import Minio
             type="string",
             description="S3 path to the dataset (format: s3://minio_url/bucket/object)"
         ),
-        "checksum_algorithm": Param(
+        "fingerprint_algorithm": Param(
             "sha256",
             type="string",
             enum=["md5", "sha1", "sha256", "sha512"],
-            description="Checksum algorithm to use"
+            description="Fingerprint algorithm to use"
         )
     }
 )
 def pistis_fingerprint_dag():
     """
-    DAG that retrieves a dataset from MinIO storage and calculates its checksum.
+    DAG that retrieves a dataset from MinIO storage and calculates its fingerprint.
     """
 
     MINIO_BUCKET_NAME = Variable.get("minio_pistis_bucket_api_key")
@@ -94,27 +94,27 @@ def pistis_fingerprint_dag():
             raise Exception(f"Failed to retrieve dataset: {repr(e)}")
 
     @task()
-    def calculate_checksum(dataset_info):
+    def calculate_fingerprint(dataset_info):
         """
-        Calculate checksum of the dataset using the specified algorithm.
+        Calculate fingerprint of the dataset using the specified algorithm.
         """
         context = get_current_context()
-        algorithm = context["params"]["checksum_algorithm"]
+        algorithm = context["params"]["fingerprint_algorithm"]
 
-        logging.info(f"### Calculating {algorithm} checksum")
+        logging.info(f"### Calculating {algorithm} fingerprint")
 
         try:
             data = dataset_info["data"]
 
-            # Calculate checksum based on algorithm
+            # Calculate fingerprint based on algorithm
             if algorithm == "md5":
-                checksum = hashlib.md5(data).hexdigest()
+                fingerprint = hashlib.md5(data).hexdigest()
             elif algorithm == "sha1":
-                checksum = hashlib.sha1(data).hexdigest()
+                fingerprint = hashlib.sha1(data).hexdigest()
             elif algorithm == "sha256":
-                checksum = hashlib.sha256(data).hexdigest()
+                fingerprint = hashlib.sha256(data).hexdigest()
             elif algorithm == "sha512":
-                checksum = hashlib.sha512(data).hexdigest()
+                fingerprint = hashlib.sha512(data).hexdigest()
             else:
                 raise ValueError(f"Unsupported algorithm: {algorithm}")
 
@@ -123,25 +123,25 @@ def pistis_fingerprint_dag():
                 "object": dataset_info["object"],
                 "size": dataset_info["size"],
                 "algorithm": algorithm,
-                "checksum": checksum
+                "fingerprint": fingerprint
             }
 
-            logging.info(f"### Checksum calculated successfully:")
+            logging.info(f"### Fingerprint calculated successfully:")
             logging.info(f"###   File: {dataset_info['object']}")
             logging.info(f"###   Size: {dataset_info['size']} bytes")
             logging.info(f"###   Algorithm: {algorithm}")
-            logging.info(f"###   Checksum: {checksum}")
+            logging.info(f"###   Fingerprint: {fingerprint}")
 
             return result
 
         except Exception as e:
-            logging.error(f"### Error calculating checksum: {repr(e)}")
-            raise Exception(f"Failed to calculate checksum: {repr(e)}")
+            logging.error(f"### Error calculating fingerprint: {repr(e)}")
+            raise Exception(f"Failed to calculate fingerprint: {repr(e)}")
 
     @task()
-    def store_checksum_result(checksum_result):
+    def store_fingerprint_result(fingerprint_result):
         """
-        Store the checksum result back to MinIO as a JSON file.
+        Store the fingerprint result back to MinIO as a JSON file.
         """
         import json
         from io import BytesIO
@@ -149,19 +149,19 @@ def pistis_fingerprint_dag():
         context = get_current_context()
         run_id = context['dag_run'].run_id
 
-        logging.info("### Storing checksum result to MinIO")
+        logging.info("### Storing fingerprint result to MinIO")
 
         try:
             # Create result filename
-            original_object = checksum_result["object"]
-            result_object = f"checksums/{original_object}.{checksum_result['algorithm']}.json"
+            original_object = fingerprint_result["object"]
+            result_object = f"fingerprints/{original_object}.{fingerprint_result['algorithm']}.json"
 
             # Prepare JSON result
             result_json = {
-                "file": checksum_result["object"],
-                "size": checksum_result["size"],
-                "algorithm": checksum_result["algorithm"],
-                "checksum": checksum_result["checksum"],
+                "file": fingerprint_result["object"],
+                "size": fingerprint_result["size"],
+                "algorithm": fingerprint_result["algorithm"],
+                "fingerprint": fingerprint_result["fingerprint"],
                 "calculated_at": datetime.utcnow().isoformat(),
                 "dag_run_id": run_id
             }
@@ -178,25 +178,33 @@ def pistis_fingerprint_dag():
                 content_type='application/json'
             )
 
-            result_url = f"s3://{MINIO_URL}/{MINIO_BUCKET_NAME}/{result.object_name}"
+            result_url = f"s3://{MINIO_URL}/{MINIO_BUCKET_NAME}/{result_object}"
 
-            logging.info(f"### Checksum result stored at: {result_url}")
+            presigned_url = client.presigned_get_object(
+                MINIO_BUCKET_NAME,
+                result_object,
+                expires=timedelta(hours=1)
+            )
+
+            logging.info(f"### Fingerprint result stored at: {result_url}")
+            logging.info("### Generated presigned URL for fingerprint result")
 
             return {
                 "result_url": result_url,
-                "checksum": checksum_result["checksum"],
-                "algorithm": checksum_result["algorithm"]
+                "presigned_url": presigned_url,
+                "fingerprint": fingerprint_result["fingerprint"],
+                "algorithm": fingerprint_result["algorithm"]
             }
 
         except Exception as e:
-            logging.error(f"### Error storing checksum result: {repr(e)}")
-            raise Exception(f"Failed to store checksum result: {repr(e)}")
+            logging.error(f"### Error storing fingerprint result: {repr(e)}")
+            raise Exception(f"Failed to store fingerprint result: {repr(e)}")
 
     # Define task dependencies
     dataset = get_dataset()
-    checksum = calculate_checksum(dataset)
-    result = store_checksum_result(checksum)
+    fingerprint = calculate_fingerprint(dataset)
+    result = store_fingerprint_result(fingerprint)
 
-    dataset >> checksum >> result
+    dataset >> fingerprint >> result
 
 pistis_fingerprint_dag()
