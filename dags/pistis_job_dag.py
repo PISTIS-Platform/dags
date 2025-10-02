@@ -1013,7 +1013,7 @@ def pistis_job_template():
                     accessURL = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(new_uuid)
                     json_ld = generate_json_ld_data_distribution(accessURL, extension, encryption)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Adding data distribution ... ")           
-                    add_distribution_to_data_catalogue(job_info["uuid"], json_ld, access_token, encryption)
+                    add_distribution_to_data_catalogue(job_info["uuid"], json_ld, access_token)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Data distribution added ... ")
                     if (encryption.strip().lower() == "true"):
                         logging.info(" pistis_job_template#requires_add_data_distribution: Notifiying to SCEE ... ")           
