@@ -384,7 +384,7 @@ def pistis_job_template():
                        "insights": insightsURL,
                        "file_type": extension,
                        "category": category,
-                       "keywords": json.dumps(json_keywords, indent=2),
+                       "keywords": json.dumps(json_keywords),
                        "isEncrypted": isEncrypted
                       }
        template = json.loads(DATASET_JSON_LD_TEMPLATE)
