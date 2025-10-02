@@ -241,7 +241,7 @@ from airflow.models import Variable
 
 def pistis_workflow_template():
         
-    #Variable.set(key="current_job", value="none")
+    CAT_PREFIX = "http://publications.europa.eu/resource/authority/data-theme/"
 
     @task()
     def get_job_from_workflow():
@@ -325,7 +325,7 @@ def pistis_workflow_template():
         wf_res_id = job_data['wf_results_id']
         encryption = context["params"]["encryption"]
         periodicity = context["params"]["periodicity"]
-        dataset_category = context["params"]["dataset_category"]
+        dataset_category = CAT_PREFIX + context["params"]["dataset_category"]
         dataset_keywords = context["params"]["dataset_keywords"]
 
         if (len(prev_run_list) > 0):
