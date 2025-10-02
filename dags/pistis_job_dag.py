@@ -197,10 +197,10 @@ def pistis_job_template():
     def notifyToSearchableEncyption(uuid, keywords, access_token):
         logging.info(" ### Notifying to Searchale Encryption component ... ")
 
-        payload = {{
+        payload = {
             "assetId": uuid,
             "keywords": keywords
-        }}            
+        }            
         headers = {
                     "Authorization": "Bearer " + access_token # DATA_STORAGE_API_KEY
                   }
