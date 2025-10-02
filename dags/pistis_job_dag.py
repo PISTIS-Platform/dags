@@ -367,7 +367,7 @@ def pistis_job_template():
        date = datetime.utcnow().isoformat()
 
        raw_name = format_orginal_ds_name(object_name)
-       json_keywords = [{"@language": "en", "@value": item} for item in keywords]
+       json_keywords = [{"@language": "en", "@value": item} for item in json.loads(keywords)]
 
        replacements = {
                        "foaf_mbox_id" : "mailto:admin@pistis.eu",
