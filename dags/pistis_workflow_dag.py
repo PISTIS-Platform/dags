@@ -134,6 +134,8 @@ from airflow.models import Variable
         "access_token": Param("Access Token", type="string"),
         "encryption": Param("Encryption Flag", type="string"),
         "periodicity": Param("", type="string"),
+        "dataset_category": Param("", type="string"),
+        "dataset_keywords": Param({"key": "value"}, type=["object", "null"]),
         "raw_wf": Param(
             [{
                 "prev_run": "000",
@@ -323,6 +325,11 @@ def pistis_workflow_template():
         wf_res_id = job_data['wf_results_id']
         encryption = context["params"]["encryption"]
         periodicity = context["params"]["periodicity"]
+        dataset_category = context["params"]["dataset_category"]
+        dataset_keywords = context["params"]["dataset_keywords"]
+
+        "dataset_category": Param("", type="string"),
+        "dataset_keywords": Param({"key": "value"}, type=["object", "null"]),
 
         if (len(prev_run_list) > 0):
             prev_job_name = prev_run_list[0]
@@ -360,7 +367,9 @@ def pistis_workflow_template():
                  "is_last_job": context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['is_last_job'],
                  "access_token": context["params"]["access_token"],
                  "encryption": encryption,
-                 "periodicity": periodicity
+                 "periodicity": periodicity,
+                 "dataset_category": dataset_category,
+                 "dataset_keywords": dataset_keywords
                  }
              }
 
@@ -482,8 +491,7 @@ def pistis_workflow_template():
             
             start_time = datetime.now()
             if (periodicity == "hourly"):
-                #start_time = start_time + timedelta(hours=1)
-                start_time = start_time + timedelta(minutes=5)
+                start_time = start_time + timedelta(hours=1)
             elif (periodicity == "daily"):
                 start_time = start_time + timedelta(days=1)
             elif (periodicity == "montly"):

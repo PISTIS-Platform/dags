@@ -160,6 +160,7 @@ def pistis_job_template():
     IAM_URL = Variable.get("iam_url")
     AUTH_URL = Variable.get("auth_url")
     ED_URL = Variable.get("encryption_decryption_url")
+    SCEE_URL = Variable.get("smart_contract_execution_engine_url")
     ORCHESTRABLE_SERVICES = ["data-check-in", "data-transformation", "insights-generator"]
     CATALOG_NAME = Variable.get("catalog_name")
     PUBLISHER =  Variable.get("publisher_name")
@@ -192,6 +193,25 @@ def pistis_job_template():
         #logging.info(" ### format_orginal_ds_name: final name is " + final_name)
         return final_name  
         
+    
+    def notifyToSearchableEncyption(uuid, keywords, access_token):
+        logging.info(" ### Notifying to Searchale Encryption component ... ")
+
+        payload = {{
+            "assetId": uuid,
+            "keywords": json.dumps(keywords)
+        }}            
+        headers = {
+                    "Authorization": "Bearer " + access_token # DATA_STORAGE_API_KEY
+                  }
+        endpoint = SCEE_URL + "/api/dssetransactions/StoreCorrelation"
+            
+        logging.info(" encrypt_dataset: Calling Service with: headers = " + str(headers) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
+        
+        res = requests.post(url=endpoint, headers=headers, data=payload)
+        logging.info(" ### Searchale Encryption request: " + str(res))
+        return res 
+
     def encrypt_dataset(dataset_name, dataset_content, access_token):
         logging.info(" ### Encrypting dataset calling to E/D service ... ")
 
@@ -316,7 +336,7 @@ def pistis_job_template():
        extension = os.path.splitext(object_name)[1]
        return extension.upper()[1:]
 
-    def generate_dataset_json_ld(source, metadata, uuid_url, extension):
+    def generate_dataset_json_ld(source, metadata, uuid_url, extension, category, keywords, isEncrypted):
        
        logging.info(" pistis_job_template#generate_dataset_json_ld: Starting json ld generation ... ") 
        evaluable_attrs = ['dataset_name','dataset_description', 'insights'] ## Add  meta fields to be evaluated
@@ -347,6 +367,8 @@ def pistis_job_template():
        date = datetime.utcnow().isoformat()
 
        raw_name = format_orginal_ds_name(object_name)
+       json_keywords = [{"@language": "en", "@value": item} for item in keywords]
+
        replacements = {
                        "foaf_mbox_id" : "mailto:admin@pistis.eu",
                        "foaf_name": PUBLISHER,
@@ -360,14 +382,17 @@ def pistis_job_template():
                        "accessURL": uuid_url,
                        "ds_byte_size": str(stat.size),
                        "insights": insightsURL,
-                       "file_type": extension
+                       "file_type": extension,
+                       "category": category,
+                       "keywords": json.dumps(json_keywords, indent=2),
+                       "isEncrypted": isEncrypted
                       }
        template = json.loads(DATASET_JSON_LD_TEMPLATE)
        logging.info(" pistis_job_template#generate_dataset_json_ld: TEMPLATE GENERATED = " + str(template)) 
        return jsoninja.replace(template, replacements)
 
  
-    def generate_json_ld_data_distribution(access_url, extension):      
+    def generate_json_ld_data_distribution(access_url, extension, isEncrypted):      
        logging.info(" pistis_job_template#generate_dataset_json_ld: Starting json ld generation ... ") 
        
        ds_title = "Additional Distribution - "                  
@@ -377,7 +402,8 @@ def pistis_job_template():
                        "data_dist_name": ds_title + date,
                        "data_dist_accessURL": access_url,
                        "date_issued": date,
-                       "file_type": extension
+                       "file_type": extension,
+                       "isEncrypted": isEncrypted
                       }
        template = json.loads(DATASET_JSON_LD_DATA_DISTRIBUTION_TEMPLATE)
        logging.info(" pistis_job_template#generate_json_ld_data_distribution: TEMPLATE GENERATED = " + str(template)) 
@@ -912,6 +938,8 @@ def pistis_job_template():
     @task()
     def storage(job_info):
 
+        keywords = job_info['dataset_keywords']
+        category = job_info['dataset_category']
         wf_results_id = job_info['wf_results_id'] 
         root_run_id = job_info["root_dag_run"]
         job_name = job_info["job_name"]
@@ -940,7 +968,7 @@ def pistis_job_template():
                 register_default_access_policy(uuid, metadata["dataset_name"], metadata["dataset_description"], access_token)
 
                 # Store metadata in factory data catalogue using uuid got it from data storage
-                ds_json_ld = generate_dataset_json_ld(source, metadata, ds_path_url, extension)
+                ds_json_ld = generate_dataset_json_ld(source, metadata, ds_path_url, extension, category, keywords, encryption)
                 logging.info(" pistis_job_template#requires_access_policy_notification: Persiting metadata in Factory Data Catalogue using UUID = " + str(uuid))
                 catalogue_ds_uuid = add_dataset_to_factory_data_catalogue(ds_json_ld, access_token)
                 logging.info(" pistis_job_template#requires_access_policy_notification: Persited with UUID " + str(catalogue_ds_uuid))
@@ -948,6 +976,10 @@ def pistis_job_template():
                 # Update job info with UUID
                 job_info["uuid"] = catalogue_ds_uuid['id']
                 job_info["data_uuid"] = uuid
+
+                logging.info(" pistis_job_template#requires_add_data_distribution: Notifiying to SCEE ... ")           
+                notifyToSearchableEncyption(uuid, keywords, access_token)
+                logging.info(" pistis_job_template#requires_add_data_distribution: SCEE notified ... ")
 
             if requires_add_data_distribution(service_endpoint):
                 # Add data distribution to DS in the catalogue 
@@ -978,10 +1010,14 @@ def pistis_job_template():
                     new_uuid = add_dataset_to_factory_data_storage(source, job_info["data_uuid"], access_token, encryption)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Added DS with UUID = " + str(new_uuid))
                     accessURL = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(new_uuid)
-                    json_ld = generate_json_ld_data_distribution(accessURL, extension)
+                    json_ld = generate_json_ld_data_distribution(accessURL, extension, encryption)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Adding data distribution ... ")           
                     add_distribution_to_data_catalogue(job_info["uuid"], json_ld, access_token, encryption)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Data distribution added ... ")
+                    logging.info(" pistis_job_template#requires_add_data_distribution: Notifiying to SCEE ... ")           
+                    notifyToSearchableEncyption(uuid, keywords, access_token)
+                    logging.info(" pistis_job_template#requires_add_data_distribution: SCEE notified ... ")
+                    
 
             if (requires_only_metadata_update(service_endpoint)):
                 # Add data distribution to DS in the catalogue 
