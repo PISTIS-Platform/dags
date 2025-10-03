@@ -1053,7 +1053,7 @@ def pistis_job_template():
                     #ds_path_url = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + uuid
                     #ds_json_ld = generate_dataset_json_ld(source, metadata, ds_path_url)
                     logging.info(" pistis_job_template#requires_only_metadata_update: Updating metadata in data catalogue ... ") 
-                    update_metadata_in_data_catalogue(job_info["uuid"], metadata, access_token, encryption)
+                    update_metadata_in_data_catalogue(job_info["uuid"], metadata, access_token, "false")
                     logging.info(" pistis_job_template#requires_only_metadata_update: Metadata updated ... ") 
 
             # Update JSON workflow resukts 
