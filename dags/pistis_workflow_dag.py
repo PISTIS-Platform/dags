@@ -445,7 +445,7 @@ def pistis_workflow_template():
             periodicity = context["params"]["periodicity"]
             dataset_category = context["params"]["dataset_category"]
             dataset_keywords = context["params"]["dataset_keywords"]
-            logging.info("####### TYPE ===> " + str(type(dataset_keywords)) 
+            logging.info("####### TYPE ===> " + str(type(dataset_keywords))) 
             ds_name = context["params"]["dataset_name"]
             ds_description = context["params"]["dataset_description"]
             trigger_run_id = context["ti"].xcom_pull(task_ids='triggerDagRunOperator', key='trigger_run_id')
