@@ -12,6 +12,11 @@ from minio import Minio
     schedule="@once",
     catchup=False,
     params={
+        "dataset_id": Param(
+            "dataset-id",
+            type="string",
+            description="Identifier associated with the dataset for similarity processing"
+        ),
         "source": Param(
             "s3://dataset/path/to/file.csv",
             type="string",
@@ -36,6 +41,11 @@ def pistis_fingerprint_dag():
     MINIO_URL = Variable.get("minio_url")
 
     client = Minio(MINIO_URL, access_key=MINIO_ROOT_USER, secret_key=MINIO_ROOT_PASSWORD, secure=False)
+
+    similarity_service_url = Variable.get(
+        "similarity_service_url",
+        default_var="https://pistis-market.eu/srv/contract-inspector-off-platform/similarity"
+    )
 
     @task()
     def get_dataset():
@@ -88,6 +98,7 @@ def pistis_fingerprint_dag():
         context = get_current_context()
         data = dataset_info["data"]
         object_name = dataset_info["object"]
+        params = context.get("params", {})
 
         def _adhoc_minhash(payload: bytes, num_perm: int = 128):
             import csv
@@ -155,7 +166,7 @@ def pistis_fingerprint_dag():
                 logging.info("### Non-CSV dataset detected; skipping fingerprint calculation")
                 return None
 
-            method = context["params"].get("fingerprint_method", "adhoc_minhash")
+            method = params.get("fingerprint_method", "adhoc_minhash")
 
             if method == "datasketch_minhash":
                 fingerprint_value, algorithm = _datasketch_minhash(data)
@@ -164,23 +175,28 @@ def pistis_fingerprint_dag():
             else:
                 raise ValueError(f"Unsupported fingerprint method: {method}")
 
+            dataset_id = (params.get("dataset_id") or "").strip() or "dataset"
+
             result = {
                 "bucket": dataset_info["bucket"],
                 "object": dataset_info["object"],
                 "size": dataset_info["size"],
                 "algorithm": algorithm,
-                "fingerprint": fingerprint_value
+                "fingerprint": fingerprint_value,
+                "dataset_id": dataset_id
             }
 
             logging.info("### Fingerprint calculated successfully:")
             logging.info(f"###   File: {dataset_info['object']}")
             logging.info(f"###   Size: {dataset_info['size']} bytes")
             logging.info(f"###   Method: {algorithm}")
+            logging.info(f"###   Dataset ID: {dataset_id}")
             if isinstance(fingerprint_value, list):
                 logging.info(f"###   Fingerprint signature length: {len(fingerprint_value)}")
                 logging.info(f"###   Fingerprint sample: {fingerprint_value[:5]}")
             else:
                 logging.info(f"###   Fingerprint: {fingerprint_value}")
+
 
             return result
 
@@ -216,6 +232,8 @@ def pistis_fingerprint_dag():
         try:
             # Create result filename
             original_object = fingerprint_result["object"]
+            params = context.get("params", {})
+            dataset_id = (fingerprint_result.get("dataset_id") or params.get("dataset_id") or "").strip() or "dataset"
             result_object = f"fingerprints/{original_object}.{algorithm}.json"
 
             # Prepare JSON result
@@ -224,6 +242,7 @@ def pistis_fingerprint_dag():
                 "size": fingerprint_result["size"],
                 "algorithm": algorithm,
                 "fingerprint": fingerprint_value,
+                "dataset_id": dataset_id,
                 "calculated_at": datetime.utcnow().isoformat(),
                 "dag_run_id": run_id
             }
@@ -251,11 +270,34 @@ def pistis_fingerprint_dag():
             logging.info(f"### Fingerprint result stored at: {result_url}")
             logging.info("### Generated presigned URL for fingerprint result")
 
+            import requests
+
+            similarity_payload = {
+                "dataset_id": dataset_id,
+                "fingerprint_url": presigned_url
+            }
+
+            logging.info(f"### Notifying similarity service at {similarity_service_url}")
+            try:
+                response = requests.post(
+                    similarity_service_url,
+                    json=similarity_payload,
+                    timeout=30
+                )
+                response.raise_for_status()
+                logging.info("### Similarity service triggered for dataset %s (HTTP %s)",
+                             dataset_id,
+                             response.status_code)
+            except requests.RequestException as service_error:
+                logging.error("### Error notifying similarity service: %s", repr(service_error))
+                raise Exception(f"Failed to notify similarity service: {repr(service_error)}") from service_error
+
             return {
                 "result_url": result_url,
                 "presigned_url": presigned_url,
                 "fingerprint": fingerprint_value,
-                "algorithm": algorithm
+                "algorithm": algorithm,
+                "dataset_id": dataset_id
             }
 
         except Exception as e:
