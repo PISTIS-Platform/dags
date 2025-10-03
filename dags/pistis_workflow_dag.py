@@ -134,7 +134,12 @@ from airflow.models import Variable
         "access_token": Param("Access Token", type="string"),
         "encryption": Param("Encryption Flag", type="string"),
         "periodicity": Param("Periodicity", type="string"),
-        "dataset_category": Param("Category", type="string"),
+        "dataset_category": Param("Category", type="string"), 
+        "dataset_keywords": Param(
+            default=[],
+            type="array",
+            items={"type": "string"}
+        ),
         "dataset_keywords":  Param("Keywords", type="string"),
         "raw_wf": Param(
             [{
