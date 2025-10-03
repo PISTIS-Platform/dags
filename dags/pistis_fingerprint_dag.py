@@ -96,41 +96,83 @@ def pistis_fingerprint_dag():
     @task()
     def calculate_fingerprint(dataset_info):
         """
-        Calculate fingerprint of the dataset using the specified algorithm.
+        Calculate fingerprint of the dataset. Uses MinHash signatures for CSV inputs to aid similarity checks, and
+        falls back to traditional hashing for other file types.
         """
         context = get_current_context()
-        algorithm = context["params"]["fingerprint_algorithm"]
+        data = dataset_info["data"]
+        object_name = dataset_info["object"]
 
-        logging.info(f"### Calculating {algorithm} fingerprint")
+        def _hash_bytes(algo: str, payload: bytes) -> str:
+            if algo == "md5":
+                return hashlib.md5(payload).hexdigest()
+            if algo == "sha1":
+                return hashlib.sha1(payload).hexdigest()
+            if algo == "sha256":
+                return hashlib.sha256(payload).hexdigest()
+            if algo == "sha512":
+                return hashlib.sha512(payload).hexdigest()
+            raise ValueError(f"Unsupported algorithm: {algo}")
+
+        def _minhash_signature(payload: bytes, num_perm: int = 128):
+            import csv
+            import io
+            import random
+
+            PRIME = 4_294_967_311
+            rng = random.Random(0)
+            hash_functions = [(rng.randint(1, PRIME - 1), rng.randint(0, PRIME - 1)) for _ in range(num_perm)]
+            signature = [PRIME] * num_perm
+
+            text_stream = io.StringIO(payload.decode("utf-8", errors="ignore"))
+            reader = csv.reader(text_stream)
+            row_count = 0
+
+            for row in reader:
+                if not row:
+                    continue
+                normalized = ",".join(cell.strip() for cell in row)
+                if not normalized:
+                    continue
+                row_hash = int(hashlib.sha1(normalized.encode("utf-8")).hexdigest(), 16) % PRIME
+                for idx, (a, b) in enumerate(hash_functions):
+                    candidate = (a * row_hash + b) % PRIME
+                    if candidate < signature[idx]:
+                        signature[idx] = candidate
+                row_count += 1
+
+            if row_count == 0:
+                logging.warning("### CSV dataset is empty; falling back to sha256 fingerprint")
+                return _hash_bytes("sha256", payload), "sha256"
+
+            return signature, "minhash"
 
         try:
-            data = dataset_info["data"]
-
-            # Calculate fingerprint based on algorithm
-            if algorithm == "md5":
-                fingerprint = hashlib.md5(data).hexdigest()
-            elif algorithm == "sha1":
-                fingerprint = hashlib.sha1(data).hexdigest()
-            elif algorithm == "sha256":
-                fingerprint = hashlib.sha256(data).hexdigest()
-            elif algorithm == "sha512":
-                fingerprint = hashlib.sha512(data).hexdigest()
+            if object_name.lower().endswith(".csv"):
+                logging.info("### CSV detected; generating MinHash fingerprint for similarity analysis")
+                fingerprint_value, algorithm = _minhash_signature(data)
             else:
-                raise ValueError(f"Unsupported algorithm: {algorithm}")
+                algorithm = context["params"]["fingerprint_algorithm"]
+                logging.info(f"### Calculating {algorithm} fingerprint")
+                fingerprint_value = _hash_bytes(algorithm, data)
 
             result = {
                 "bucket": dataset_info["bucket"],
                 "object": dataset_info["object"],
                 "size": dataset_info["size"],
                 "algorithm": algorithm,
-                "fingerprint": fingerprint
+                "fingerprint": fingerprint_value
             }
 
-            logging.info(f"### Fingerprint calculated successfully:")
+            logging.info("### Fingerprint calculated successfully:")
             logging.info(f"###   File: {dataset_info['object']}")
             logging.info(f"###   Size: {dataset_info['size']} bytes")
             logging.info(f"###   Algorithm: {algorithm}")
-            logging.info(f"###   Fingerprint: {fingerprint}")
+            if isinstance(fingerprint_value, list):
+                logging.info(f"###   Fingerprint signature length: {len(fingerprint_value)}")
+                logging.info(f"###   Fingerprint sample: {fingerprint_value[:5]}")
+            else:
+                logging.info(f"###   Fingerprint: {fingerprint_value}")
 
             return result
 
