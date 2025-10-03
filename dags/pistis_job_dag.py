@@ -199,7 +199,7 @@ def pistis_job_template():
 
         payload = {
             "assetId": uuid,
-            "keywords": keywords
+            "keywords": json.dumps(json.loads(keywords))
         }            
         headers = {
                     "Authorization": "Bearer " + access_token # DATA_STORAGE_API_KEY
