@@ -521,7 +521,7 @@ def pistis_workflow_template():
     self_triggering_pistis_workflow = TriggerDagRunOperator(
             task_id='self_triggering_pistis_workflow',
             trigger_dag_id='pistis_workflow_template',
-            conf={"encryption": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.encryption }}", "periodicity": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.periodicity }}", "workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.access_token }}" },
+            conf={"dataset_category": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.dataset_category }}", "dataset_keywords": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.dataset_keywords }}", "encryption": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.encryption }}", "periodicity": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.periodicity }}", "workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.access_token }}" },
             wait_for_completion=True,
             poke_interval=10,
             #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
