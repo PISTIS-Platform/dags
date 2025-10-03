@@ -1,17 +1,3 @@
-# Copyright 2024 Eviden Spain S.A
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import hashlib
 import logging
 from datetime import datetime, timedelta
@@ -31,11 +17,11 @@ from minio import Minio
             type="string",
             description="S3 path to the dataset (format: s3://minio_url/bucket/object)"
         ),
-        "fingerprint_algorithm": Param(
-            "sha256",
+        "fingerprint_method": Param(
+            "adhoc_minhash",
             type="string",
-            enum=["md5", "sha1", "sha256", "sha512"],
-            description="Fingerprint algorithm to use"
+            enum=["adhoc_minhash", "datasketch_minhash"],
+            description="Fingerprint method to use for CSV datasets"
         )
     }
 )
@@ -97,36 +83,25 @@ def pistis_fingerprint_dag():
     def calculate_fingerprint(dataset_info):
         """
         Calculate fingerprint of the dataset. Uses MinHash signatures for CSV inputs to aid similarity checks, and
-        falls back to traditional hashing for other file types.
+        falls back to doing nothing for other file types.
         """
         context = get_current_context()
         data = dataset_info["data"]
         object_name = dataset_info["object"]
 
-        def _hash_bytes(algo: str, payload: bytes) -> str:
-            if algo == "md5":
-                return hashlib.md5(payload).hexdigest()
-            if algo == "sha1":
-                return hashlib.sha1(payload).hexdigest()
-            if algo == "sha256":
-                return hashlib.sha256(payload).hexdigest()
-            if algo == "sha512":
-                return hashlib.sha512(payload).hexdigest()
-            raise ValueError(f"Unsupported algorithm: {algo}")
-
-        def _minhash_signature(payload: bytes, num_perm: int = 128):
+        def _adhoc_minhash(payload: bytes, num_perm: int = 128):
             import csv
             import io
             import random
 
-            PRIME = 4_294_967_311
+            PRIME = 4_294_967_311  # Large prime ensures hashing works well with modular arithmetic
             rng = random.Random(0)
             hash_functions = [(rng.randint(1, PRIME - 1), rng.randint(0, PRIME - 1)) for _ in range(num_perm)]
             signature = [PRIME] * num_perm
 
             text_stream = io.StringIO(payload.decode("utf-8", errors="ignore"))
             reader = csv.reader(text_stream)
-            row_count = 0
+            rows_processed = 0
 
             for row in reader:
                 if not row:
@@ -139,22 +114,55 @@ def pistis_fingerprint_dag():
                     candidate = (a * row_hash + b) % PRIME
                     if candidate < signature[idx]:
                         signature[idx] = candidate
-                row_count += 1
+                rows_processed += 1
 
-            if row_count == 0:
-                logging.warning("### CSV dataset is empty; falling back to sha256 fingerprint")
-                return _hash_bytes("sha256", payload), "sha256"
+            if rows_processed == 0:
+                logging.warning("### CSV dataset had no rows; returning default MinHash signature")
 
-            return signature, "minhash"
+            return signature, "adhoc_minhash"
+
+        def _datasketch_minhash(payload: bytes, num_perm: int = 128):
+            import csv
+            import io
+            try:
+                from datasketch import MinHash
+            except ImportError as exc:
+                raise ImportError(
+                    "datasketch is required for the 'datasketch_minhash' method. Install datasketch to enable it."
+                ) from exc
+
+            text_stream = io.StringIO(payload.decode("utf-8", errors="ignore"))
+            reader = csv.reader(text_stream)
+            minhash = MinHash(num_perm=num_perm)
+            rows_processed = 0
+
+            for row in reader:
+                if not row:
+                    continue
+                normalized = ",".join(cell.strip() for cell in row)
+                if not normalized:
+                    continue
+                minhash.update(normalized.encode("utf-8"))
+                rows_processed += 1
+
+            if rows_processed == 0:
+                logging.warning("### CSV dataset had no rows; returning default datasketch MinHash signature")
+
+            return minhash.hashvalues.tolist(), "datasketch_minhash"
 
         try:
-            if object_name.lower().endswith(".csv"):
-                logging.info("### CSV detected; generating MinHash fingerprint for similarity analysis")
-                fingerprint_value, algorithm = _minhash_signature(data)
+            if not object_name.lower().endswith(".csv"):
+                logging.info("### Non-CSV dataset detected; skipping fingerprint calculation")
+                return None
+
+            method = context["params"].get("fingerprint_method", "adhoc_minhash")
+
+            if method == "datasketch_minhash":
+                fingerprint_value, algorithm = _datasketch_minhash(data)
+            elif method == "adhoc_minhash":
+                fingerprint_value, algorithm = _adhoc_minhash(data)
             else:
-                algorithm = context["params"]["fingerprint_algorithm"]
-                logging.info(f"### Calculating {algorithm} fingerprint")
-                fingerprint_value = _hash_bytes(algorithm, data)
+                raise ValueError(f"Unsupported fingerprint method: {method}")
 
             result = {
                 "bucket": dataset_info["bucket"],
@@ -167,7 +175,7 @@ def pistis_fingerprint_dag():
             logging.info("### Fingerprint calculated successfully:")
             logging.info(f"###   File: {dataset_info['object']}")
             logging.info(f"###   Size: {dataset_info['size']} bytes")
-            logging.info(f"###   Algorithm: {algorithm}")
+            logging.info(f"###   Method: {algorithm}")
             if isinstance(fingerprint_value, list):
                 logging.info(f"###   Fingerprint signature length: {len(fingerprint_value)}")
                 logging.info(f"###   Fingerprint sample: {fingerprint_value[:5]}")
@@ -179,6 +187,7 @@ def pistis_fingerprint_dag():
         except Exception as e:
             logging.error(f"### Error calculating fingerprint: {repr(e)}")
             raise Exception(f"Failed to calculate fingerprint: {repr(e)}")
+
 
     @task()
     def store_fingerprint_result(fingerprint_result):
@@ -193,17 +202,28 @@ def pistis_fingerprint_dag():
 
         logging.info("### Storing fingerprint result to MinIO")
 
+        if not fingerprint_result:
+            logging.info("### No fingerprint result supplied; skipping storage")
+            return None
+
+        fingerprint_value = fingerprint_result.get("fingerprint")
+        algorithm = fingerprint_result.get("algorithm")
+
+        if algorithm is None or fingerprint_value is None:
+            logging.info("### Fingerprint data missing; skipping storage")
+            return None
+
         try:
             # Create result filename
             original_object = fingerprint_result["object"]
-            result_object = f"fingerprints/{original_object}.{fingerprint_result['algorithm']}.json"
+            result_object = f"fingerprints/{original_object}.{algorithm}.json"
 
             # Prepare JSON result
             result_json = {
                 "file": fingerprint_result["object"],
                 "size": fingerprint_result["size"],
-                "algorithm": fingerprint_result["algorithm"],
-                "fingerprint": fingerprint_result["fingerprint"],
+                "algorithm": algorithm,
+                "fingerprint": fingerprint_value,
                 "calculated_at": datetime.utcnow().isoformat(),
                 "dag_run_id": run_id
             }
@@ -212,7 +232,7 @@ def pistis_fingerprint_dag():
             json_data = json.dumps(result_json, indent=2).encode('utf-8')
 
             # Store in MinIO
-            result = client.put_object(
+            _ = client.put_object(
                 MINIO_BUCKET_NAME,
                 result_object,
                 data=BytesIO(json_data),
@@ -234,8 +254,8 @@ def pistis_fingerprint_dag():
             return {
                 "result_url": result_url,
                 "presigned_url": presigned_url,
-                "fingerprint": fingerprint_result["fingerprint"],
-                "algorithm": fingerprint_result["algorithm"]
+                "fingerprint": fingerprint_value,
+                "algorithm": algorithm
             }
 
         except Exception as e:
