@@ -22,6 +22,7 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.operators.empty import EmptyOperator
 from airflow.models.dagrun import DagRun
 import logging
+import os
 from airflow.settings import json
 from airflow.models import Variable
 
@@ -442,7 +443,7 @@ def pistis_periodic_workflow():
             if (periodicity):
                 return "periodic_group.build_conf"
             else: 
-                return "skip_self_triggering"
+                return "fingerprint_triggering"
             
     @task_group(group_id='periodic_group')
     def periodic_group():    
@@ -535,10 +536,18 @@ def pistis_periodic_workflow():
         #conf={"workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }} ", "executed_jobs": "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}" }
     )
 
-    skip_self_triggering = EmptyOperator(
-        task_id = 'skip_self_triggering'
+    fingerprint_triggering = TriggerDagRunOperator(
+            task_id='fingerprint_triggering',
+            trigger_dag_id='pistis_fingerprint_dag',
+            conf={"dataset_id": os.path.splitext(os.path.basename("{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.source }}"))[0],
+                  "source": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.source }}", 
+                  "fingerprint_method": "adhoc_minhash" },
+            wait_for_completion=False,
+            poke_interval=10,
+            #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
+            #conf={"workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }} ", "executed_jobs": "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}" }
     )
 
-    get_job_from_workflow() >> generate_conf_for_job_dag() >> trigger_pistis_job >> get_current_workflow() >> check_pending_jobs() >> [self_triggering_pistis_workflow, periodic_group(), skip_self_triggering]
+    get_job_from_workflow() >> generate_conf_for_job_dag() >> trigger_pistis_job >> get_current_workflow() >> check_pending_jobs() >> [self_triggering_pistis_workflow, periodic_group(), fingerprint_triggering]
         
 pistis_periodic_workflow()
