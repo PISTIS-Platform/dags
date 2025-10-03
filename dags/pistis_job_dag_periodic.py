@@ -327,9 +327,9 @@ def pistis_job_periodic():
        extension = os.path.splitext(object_name)[1]
        return extension.upper()[1:]
 
-    def generate_dataset_json_ld(source, metadata, uuid_url, extension):
+    def generate_dataset_json_ld(source, metadata, uuid_url, extension, category, keywords, isEncrypted):
        
-       logging.info(" pistis_job_periodic#generate_dataset_json_ld: Starting json ld generation ... ") 
+       logging.info(" pistis_job_template#generate_dataset_json_ld: Starting json ld generation ... ") 
        evaluable_attrs = ['dataset_name','dataset_description', 'insights'] ## Add  meta fields to be evaluated
        ds_title = "Pistis Dataset"
        ds_description = "Pistis Dataset"
@@ -344,7 +344,7 @@ def pistis_job_periodic():
            object_name = s3_list[index + 1]
            stat = client.stat_object(bucket_name, object_name)
 
-       logging.info(" pistis_job_periodic#generate_dataset_json_ld: Evaluating metadata ... ") 
+       logging.info(" pistis_job_template#generate_dataset_json_ld: Evaluating metadata ... ") 
        for meta_field in metadata.keys():
            logging.info(" ### metadata = " + meta_field + " and value = " + metadata[meta_field]) 
            if (meta_field in evaluable_attrs):
@@ -358,6 +358,8 @@ def pistis_job_periodic():
        date = datetime.utcnow().isoformat()
 
        raw_name = format_orginal_ds_name(object_name)
+       json_keywords = [{"@language": "en", "@value": item} for item in json.loads(keywords)]
+
        replacements = {
                        "foaf_mbox_id" : "mailto:admin@pistis.eu",
                        "foaf_name": PUBLISHER,
@@ -371,15 +373,18 @@ def pistis_job_periodic():
                        "accessURL": uuid_url,
                        "ds_byte_size": str(stat.size),
                        "insights": insightsURL,
-                       "file_type": extension
+                       "file_type": extension,
+                       "category": category,
+                       "keywords": json.dumps(json_keywords),
+                       "isEncrypted": isEncrypted
                       }
        template = json.loads(DATASET_JSON_LD_TEMPLATE)
-       logging.info(" pistis_job_periodic#generate_dataset_json_ld: TEMPLATE GENERATED = " + str(template)) 
+       logging.info(" pistis_job_template#generate_dataset_json_ld: TEMPLATE GENERATED = " + str(template)) 
        return jsoninja.replace(template, replacements)
 
  
-    def generate_json_ld_data_distribution(access_url, extension):      
-       logging.info(" pistis_job_periodic#generate_dataset_json_ld: Starting json ld generation ... ") 
+    def generate_json_ld_data_distribution(access_url, extension, isEncrypted):      
+       logging.info(" pistis_job_template#generate_dataset_json_ld: Starting json ld generation ... ") 
        
        ds_title = "Additional Distribution - "                  
        date = datetime.utcnow().isoformat()
@@ -388,10 +393,11 @@ def pistis_job_periodic():
                        "data_dist_name": ds_title + date,
                        "data_dist_accessURL": access_url,
                        "date_issued": date,
-                       "file_type": extension
+                       "file_type": extension,
+                       "isEncrypted": isEncrypted
                       }
        template = json.loads(DATASET_JSON_LD_DATA_DISTRIBUTION_TEMPLATE)
-       logging.info(" pistis_job_periodic#generate_json_ld_data_distribution: TEMPLATE GENERATED = " + str(template)) 
+       logging.info(" pistis_job_template#generate_json_ld_data_distribution: TEMPLATE GENERATED = " + str(template)) 
        return jsoninja.replace(template, replacements)
         
     def notify_access_policy(uuid, name, description, access_token):
@@ -953,6 +959,8 @@ def pistis_job_periodic():
     def storage(job_info):
 
         wf_results_id = job_info['wf_results_id'] 
+        keywords = job_info['dataset_keywords']
+        category = job_info['dataset_category']
         root_run_id = job_info["root_dag_run"]
         job_name = job_info["job_name"]
         source = job_info["source"]
@@ -961,6 +969,7 @@ def pistis_job_periodic():
         prev_run = job_info["prev_run"]
         last_job = job_info["is_last_job"]
         access_token = job_info["access_token"]
+        encryption = "false" #job_info["encryption"]
         ds_path_url = source
         uuid = 0
         extension = getFileExtension(source)
@@ -1029,7 +1038,7 @@ def pistis_job_periodic():
                     new_uuid = add_dataset_to_factory_data_storage(source, job_info["data_uuid"], access_token, False)
                     logging.info(" pistis_job_periodic#requires_add_data_distribution: Added DS with UUID = " + str(new_uuid))
                     accessURL = DATA_STORAGE_URL + "/api/files/get_file?asset_uuid=" + str(new_uuid)
-                    json_ld = generate_json_ld_data_distribution(accessURL, extension)
+                    json_ld = generate_json_ld_data_distribution(accessURL, extension, encryption)
                     logging.info(" pistis_job_periodic#requires_add_data_distribution: Adding data distribution ... ")           
                     add_distribution_to_data_catalogue(job_info["uuid"], json_ld, access_token)
                     logging.info(" pistis_job_periodic#requires_add_data_distribution: Data distribution added ... ")

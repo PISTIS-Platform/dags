@@ -133,6 +133,8 @@ from airflow.models import Variable
         "access_token": Param("Access Token", type="string"),
         "encryption": Param("Encryption Flag", type="string"),
         "periodicity": Param("", type="string"),
+        "dataset_category": Param("Category", type="string"),
+        "dataset_keywords":  Param("Keywords", type="string"),
         "raw_wf": Param(
             [{
                 "prev_run": "000",
@@ -321,7 +323,9 @@ def pistis_periodic_workflow():
         prev_job_name = "none"
         wf_res_id = job_data['wf_results_id']
         encryption = context["params"]["encryption"]
-        periodicity = context["params"]["periodicity"] 
+        periodicity = context["params"]["periodicity"]
+        dataset_category = CAT_PREFIX + context["params"]["dataset_category"]
+        dataset_keywords = context["params"]["dataset_keywords"] 
 
         if (len(prev_run_list) > 0):
             prev_job_name = prev_run_list[0]
@@ -375,7 +379,9 @@ def pistis_periodic_workflow():
                  "uuid": uuid,
                  "data_uuid": data_uuid,
                  "encryption": encryption,
-                 "periodicity": periodicity
+                 "periodicity": periodicity,
+                 "dataset_category": dataset_category,
+                 "dataset_keywords": dataset_keywords
                  }
              }
 
@@ -448,6 +454,8 @@ def pistis_periodic_workflow():
             root_run_id = context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['root_dag_run']
             access_token = context["params"]["access_token"]
             periodicity = context["params"]["periodicity"]
+            dataset_category = context["params"]["dataset_category"]
+            dataset_keywords = context["params"]["dataset_keywords"]
             ds_name = context["params"]["dataset_name"]
             ds_description = context["params"]["dataset_description"]
             trigger_run_id = context["ti"].xcom_pull(task_ids='triggerDagRunOperator', key='trigger_run_id')
@@ -462,6 +470,12 @@ def pistis_periodic_workflow():
 
             ## Add periodicity
             conf["periodicity"] = periodicity
+
+            ## Add category
+            conf["dataset_category"] = dataset_category
+
+            ## Add keywords
+            conf["dataset_keywords"] = dataset_keywords
 
             dr_list = DagRun.find(dag_id="pistis_periodic_workflow", run_id=root_run_id)
             # Add wf and raw_wf: Retrieve initial root wf raw data
@@ -498,7 +512,9 @@ def pistis_periodic_workflow():
                    "raw_wf": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}", 
                    "access_token": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').access_token }}",
                    "dataset_name": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_name }}",
-                   "dataset_description": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_description }}"},
+                   "dataset_description": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_description }}",
+                   "dataset_category": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_category }}",
+                   "dataset_keywords": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_keywords }}"},
             wait_for_completion=False,
             poke_interval=10,
             execution_date = "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').logical_date }}" 
@@ -512,7 +528,7 @@ def pistis_periodic_workflow():
     self_triggering_pistis_workflow = TriggerDagRunOperator(
         task_id='self_triggering_pistis_workflow',
         trigger_dag_id='pistis_periodic_workflow',
-        conf={"encryption": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.encryption }}", "periodicity": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.periodicity }}", "workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.access_token }}" },
+        conf={"dataset_category": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.dataset_category }}", "dataset_keywords": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.dataset_keywords }}", "encryption": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.encryption }}", "periodicity": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.periodicity }}", "workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }}", "access_token": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.access_token }}" },
         wait_for_completion=True,
         poke_interval=10 
         #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"

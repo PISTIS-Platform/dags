@@ -442,6 +442,8 @@ def pistis_workflow_template():
             root_run_id = context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['root_dag_run']
             access_token = context["params"]["access_token"]
             periodicity = context["params"]["periodicity"]
+            dataset_category = context["params"]["dataset_category"]
+            dataset_keywords = context["params"]["dataset_keywords"]
             ds_name = context["params"]["dataset_name"]
             ds_description = context["params"]["dataset_description"]
             trigger_run_id = context["ti"].xcom_pull(task_ids='triggerDagRunOperator', key='trigger_run_id')
@@ -457,6 +459,12 @@ def pistis_workflow_template():
 
             ## Add periodicity
             conf["periodicity"] = periodicity
+
+            ## Add category
+            conf["dataset_category"] = dataset_category
+
+            ## Add keywords
+            conf["dataset_keywords"] = dataset_keywords
 
             # Add wf and raw_wf: Retrieve initial root wf raw data
             if (len(dr_list) > 0):
@@ -507,7 +515,9 @@ def pistis_workflow_template():
                    "workflow": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}",
                    "raw_wf": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').raw_wf }}", 
                    "dataset_name": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_name }}",
-                   "dataset_description": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_description }}"},     
+                   "dataset_description": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_description }}",
+                   "dataset_category": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_category }}",
+                   "dataset_keywords": "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').dataset_keywords }}"},     
             wait_for_completion=False,
             poke_interval=10,
             execution_date= "{{ ti.xcom_pull(task_ids='periodic_group.build_conf', key='return_value').logical_date }}" 
