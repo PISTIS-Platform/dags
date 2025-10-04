@@ -199,7 +199,7 @@ def pistis_job_template():
 
         payload = {
             "assetId": uuid,
-            "keywords": json.loads(json.dumps(keywords))
+            "keywords": json.loads(keywords)
         }            
         headers = {
                     "Authorization": "Bearer " + access_token # DATA_STORAGE_API_KEY
@@ -367,7 +367,7 @@ def pistis_job_template():
        date = datetime.utcnow().isoformat()
 
        raw_name = format_orginal_ds_name(object_name)
-       json_keywords = [{"@language": "en", "@value": item} for item in json.loads(json.dumps(keywords))]
+       json_keywords = [{"@language": "en", "@value": item} for item in json.loads(keywords)]
 
        replacements = {
                        "foaf_mbox_id" : "mailto:admin@pistis.eu",
@@ -384,7 +384,7 @@ def pistis_job_template():
                        "insights": insightsURL,
                        "file_type": extension,
                        "category": category,
-                       "keywords": json.dumps(json_keywords),
+                       "keywords": json_keywords,
                        "isEncrypted": isEncrypted
                       }
        template = json.loads(DATASET_JSON_LD_TEMPLATE)
