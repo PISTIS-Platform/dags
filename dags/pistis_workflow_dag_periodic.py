@@ -135,7 +135,7 @@ from airflow.models import Variable
         "encryption": Param("Encryption Flag", type="string"),
         "periodicity": Param("", type="string"),
         "dataset_category": Param("Category", type="string"),
-        "dataset_keywords": Param("[]", type="string"),
+        "dataset_keywords": Param(default=[], type="array"),
         "raw_wf": Param(
             [{
                 "prev_run": "000",
