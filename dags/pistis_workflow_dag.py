@@ -327,7 +327,7 @@ def pistis_workflow_template():
         encryption = context["params"]["encryption"]
         periodicity = context["params"]["periodicity"]
         dataset_category = CAT_PREFIX + context["params"]["dataset_category"]
-        dataset_keywords = json.loads(context["params"]["dataset_keywords"])
+        dataset_keywords = json.loads(context["params"]["dataset_keywords"]) if isinstance(context["params"]["dataset_keywords"], str) else context["params"]["dataset_keywords"]
 
         logging.info("####### TYPE ===> " + str(type(dataset_keywords))) 
         if (len(prev_run_list) > 0):
