@@ -136,7 +136,7 @@ from airflow.models import Variable
         "encryption": Param("Encryption Flag", type="string"),
         "periodicity": Param("Periodicity", type="string"),
         "dataset_category": Param("Category", type="string"), 
-        "dataset_keywords": Param(default=[], type="array"),
+        "dataset_keywords": Param(default='[]', type="string"),
         "raw_wf": Param(
             [{
                 "prev_run": "000",
@@ -327,7 +327,7 @@ def pistis_workflow_template():
         encryption = context["params"]["encryption"]
         periodicity = context["params"]["periodicity"]
         dataset_category = CAT_PREFIX + context["params"]["dataset_category"]
-        dataset_keywords = context["params"]["dataset_keywords"]
+        dataset_keywords = (context["params"]["dataset_keywords"]).replace('"', "'")
 
         logging.info("####### TYPE ===> " + str(type(dataset_keywords))) 
         if (len(prev_run_list) > 0):
@@ -445,7 +445,7 @@ def pistis_workflow_template():
             access_token = context["params"]["access_token"]
             periodicity = context["params"]["periodicity"]
             dataset_category = context["params"]["dataset_category"]
-            dataset_keywords = context["params"]["dataset_keywords"]
+            dataset_keywords = (context["params"]["dataset_keywords"]).replace('"', "'")
             ds_name = context["params"]["dataset_name"]
             ds_description = context["params"]["dataset_description"]
             trigger_run_id = context["ti"].xcom_pull(task_ids='triggerDagRunOperator', key='trigger_run_id')
