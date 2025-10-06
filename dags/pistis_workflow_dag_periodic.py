@@ -443,7 +443,7 @@ def pistis_periodic_workflow():
             if (periodicity):
                 return "periodic_group.build_conf"
             else: 
-                return "fingerprint_triggering"
+                return "fingerprint_group.build_fingerprint_conf"
             
     @task_group(group_id='periodic_group')
     def periodic_group():    
@@ -536,18 +536,42 @@ def pistis_periodic_workflow():
         #conf={"workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }} ", "executed_jobs": "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}" }
     )
 
-    fingerprint_triggering = TriggerDagRunOperator(
-            task_id='fingerprint_triggering',
-            trigger_dag_id='pistis_fingerprint_dag',
-            conf={"dataset_id": os.path.splitext(os.path.basename("{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.source }}"))[0],
-                  "source": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value').job_data.source }}", 
-                  "fingerprint_method": "adhoc_minhash" },
-            wait_for_completion=False,
-            poke_interval=10,
-            #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
-            #conf={"workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }} ", "executed_jobs": "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}" }
-    )
+    @task_group(group_id='periodic_group')
+    def fingerprint_group(): 
 
-    get_job_from_workflow() >> generate_conf_for_job_dag() >> trigger_pistis_job >> get_current_workflow() >> check_pending_jobs() >> [self_triggering_pistis_workflow, periodic_group(), fingerprint_triggering]
+        @task
+        def build_fingerprint_conf():
+            context = get_current_context()
+            conf = {}
+            root_run_id = context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['root_dag_run']
+            trigger_run_id = context["ti"].xcom_pull(task_ids='triggerDagRunOperator', key='trigger_run_id')
+            dr_list = DagRun.find(dag_id="pistis_job_periodic", run_id=root_run_id)
+                
+            if (len(dr_list) > 0):
+        
+                ti = dr_list[0].get_task_instance(task_id='storage')
+                task_result = ti.xcom_pull(task_ids='storage', key='return_value') 
+                input_data = task_result["input_data"][0]
+                source = input_data["source"]
+
+                ## setup conf
+                conf["dataset_id"] = os.path.splitext(os.path.basename(source))[0]
+                conf["source"] = source 
+        
+            return conf
+            
+        fingerprint_triggering = TriggerDagRunOperator(
+                task_id='fingerprint_triggering',
+                trigger_dag_id='pistis_fingerprint_dag',
+                conf={"dataset_id": "{{ ti.xcom_pull(task_ids='build_fingerprint_conf', key='return_value').conf.dataset_id }}",
+                    "source": "{{ ti.xcom_pull(task_ids='build_fingerprint_conf', key='return_value').conf.source }}", 
+                    "fingerprint_method": "adhoc_minhash" },
+                wait_for_completion=False,
+                poke_interval=10,
+                #  "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}"
+                #conf={"workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }} ", "executed_jobs": "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}" }
+        )
+
+    get_job_from_workflow() >> generate_conf_for_job_dag() >> trigger_pistis_job >> get_current_workflow() >> check_pending_jobs() >> [self_triggering_pistis_workflow, periodic_group(), fingerprint_group()]
         
 pistis_periodic_workflow()
