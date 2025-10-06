@@ -433,7 +433,7 @@ def pistis_workflow_template():
             else: 
                 return "fingerprint_group.build_fingerprint_conf"
 
-    @task_group(group_id='periodic_group')
+    @task_group(group_id='fingerprint_group')
     def periodic_group():    
         
         @task
