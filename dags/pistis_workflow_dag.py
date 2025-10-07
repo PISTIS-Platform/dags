@@ -547,7 +547,7 @@ def pistis_workflow_template():
             context = get_current_context()
             conf = {}
             trigger_run_id = context["ti"].xcom_pull(task_ids='triggerDagRunOperator', key='trigger_run_id')
-            dr_list = DagRun.find(dag_id="pistis_workflow_template", run_id=trigger_run_id)
+            dr_list = DagRun.find(dag_id="pistis_job_template", run_id=trigger_run_id)
                 
             if (len(dr_list) > 0):
         

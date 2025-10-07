@@ -543,9 +543,8 @@ def pistis_periodic_workflow():
         def build_fingerprint_conf():
             context = get_current_context()
             conf = {}
-            root_run_id = context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['root_dag_run']
             trigger_run_id = context["ti"].xcom_pull(task_ids='triggerDagRunOperator', key='trigger_run_id')
-            dr_list = DagRun.find(dag_id="pistis_job_periodic", run_id=root_run_id)
+            dr_list = DagRun.find(dag_id="pistis_job_periodic", run_id=trigger_run_id)
                 
             if (len(dr_list) > 0):
         
