@@ -561,8 +561,8 @@ def pistis_periodic_workflow():
         fingerprint_triggering = TriggerDagRunOperator(
                 task_id='fingerprint_triggering',
                 trigger_dag_id='pistis_fingerprint_dag',
-                conf={"dataset_id": "{{ ti.xcom_pull(task_ids='build_fingerprint_conf', key='return_value').dataset_id }}",
-                    "source": "{{ ti.xcom_pull(task_ids='build_fingerprint_conf', key='return_value').source }}", 
+                conf={"dataset_id": "{{ ti.xcom_pull(task_ids='fingerprint_group.build_fingerprint_conf', key='return_value').dataset_id }}",
+                    "source": "{{ ti.xcom_pull(task_ids='fingerprint_group.build_fingerprint_conf', key='return_value').source }}", 
                     "fingerprint_method": "adhoc_minhash" },
                 wait_for_completion=False,
                 poke_interval=10,
