@@ -433,7 +433,7 @@ def pistis_workflow_template():
             else: 
                 return "fingerprint_group.build_fingerprint_conf"
 
-    @task_group(group_id='fingerprint_group')
+    @task_group(group_id='periodic_group')
     def periodic_group():    
         
         @task
@@ -540,7 +540,7 @@ def pistis_workflow_template():
             #conf={"workflow": "{{ ti.xcom_pull(task_ids='get_current_workflow', key='return_value') }} ", "executed_jobs": "{{ ti.xcom_pull(task_ids='get_job_from_workflow', key='return_value').job_id }}" }
     )
 
-    @task_group(group_id='periodic_group')
+    @task_group(group_id='fingerprint_group')
     def fingerprint_group(): 
 
         @task
