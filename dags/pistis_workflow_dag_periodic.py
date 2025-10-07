@@ -241,7 +241,7 @@ from airflow.models import Variable
 
 def pistis_periodic_workflow():
         
-    #Variable.set(key="current_job", value="none")
+    CAT_PREFIX = "http://publications.europa.eu/resource/authority/data-theme/"
 
     @task()
     def get_job_from_workflow():
