@@ -550,8 +550,7 @@ def pistis_periodic_workflow():
         
                 ti = dr_list[0].get_task_instance(task_id='storage')
                 task_result = ti.xcom_pull(task_ids='storage', key='return_value') 
-                input_data = task_result["input_data"][0]
-                source = input_data["source"]
+                source = task_result["source"]
 
                 ## setup conf
                 conf["dataset_id"] = os.path.splitext(os.path.basename(source))[0]
