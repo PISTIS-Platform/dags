@@ -329,7 +329,6 @@ def pistis_workflow_template():
         dataset_category = CAT_PREFIX + context["params"]["dataset_category"]
         dataset_keywords = (context["params"]["dataset_keywords"]).replace('"', "'")
 
-        logging.info("####### TYPE ===> " + str(type(dataset_keywords))) 
         if (len(prev_run_list) > 0):
             prev_job_name = prev_run_list[0]
             prev_run_id = prev_run_list[1]
@@ -547,9 +546,8 @@ def pistis_workflow_template():
         def build_fingerprint_conf():
             context = get_current_context()
             conf = {}
-            root_run_id = context["ti"].xcom_pull(task_ids='get_job_from_workflow', key='return_value')['root_dag_run']
             trigger_run_id = context["ti"].xcom_pull(task_ids='triggerDagRunOperator', key='trigger_run_id')
-            dr_list = DagRun.find(dag_id="pistis_workflow_template", run_id=root_run_id)
+            dr_list = DagRun.find(dag_id="pistis_workflow_template", run_id=trigger_run_id)
                 
             if (len(dr_list) > 0):
         
