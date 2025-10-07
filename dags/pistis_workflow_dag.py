@@ -497,7 +497,7 @@ def pistis_workflow_template():
             
             start_time = datetime.now()
             if (periodicity == "hourly"):
-                start_time = start_time + timedelta(hours=1)
+                start_time = start_time + timedelta(minutes=3)
             elif (periodicity == "daily"):
                 start_time = start_time + timedelta(days=1)
             elif (periodicity == "montly"):
