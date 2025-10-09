@@ -397,7 +397,9 @@ def pistis_periodic_workflow():
               trigger_dag_id="pistis_job_periodic",
               conf={
                      "job_data": "{{ ti.xcom_pull(task_ids='generate_conf_for_job_dag', key='return_value')['job_data'] }}"
-              }       
+              },
+              wait_for_completion=True,
+              poke_interval=10       
     )
 
 
