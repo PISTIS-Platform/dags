@@ -1015,10 +1015,9 @@ def pistis_job_template():
                     logging.info(" pistis_job_template#requires_add_data_distribution: Adding data distribution ... ")           
                     add_distribution_to_data_catalogue(job_info["uuid"], json_ld, access_token)
                     logging.info(" pistis_job_template#requires_add_data_distribution: Data distribution added ... ")
-                    #if (encryption.strip().lower() == "true"):
-                    #    logging.info(" pistis_job_template#requires_add_data_distribution: Notifiying to SCEE ... ")           
-                    #    notifyToSearchableEncyption(uuid, keywords, access_token)
-                    #    logging.info(" pistis_job_template#requires_add_data_distribution: SCEE notified ... ")
+                    logging.info(" pistis_job_template#requires_only_metadata_update: Updating metadata in data catalogue ... ") 
+                    update_metadata_in_data_catalogue(job_info["uuid"], {"isTransformed": "true"}, access_token, encryption)
+                    logging.info(" pistis_job_template#requires_only_metadata_update: Metadata updated ... ") 
                     
 
             if (requires_only_metadata_update(service_endpoint)):
