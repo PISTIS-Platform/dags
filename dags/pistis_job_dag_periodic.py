@@ -219,6 +219,8 @@ def pistis_job_periodic():
             endpoint = DATA_STORAGE_URL + "/api/files/create_file"
             logging.info(" pistis_job_periodic#add_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
             res = requests.post(url=endpoint, headers=headers, data=payload, files=files)
+            json_res = res.json()
+            asset_uuid = json_res['asset_uuid'] 
         else:
 
            if (append_required):
@@ -229,10 +231,9 @@ def pistis_job_periodic():
               endpoint = DATA_STORAGE_URL + "/api/files/update_file?asset_uuid=" + uuid 
               logging.info(" pistis_job_periodic#update_dataset_to_factory_data_storage: Calling Service with: headers = " + str(headers) + "; files = " + str(files) + "; endpoint = " + str(endpoint) + "; data = " + str(payload))
               res = requests.put(url=endpoint, headers=headers, data=payload, files=files)
-        
-        json_res = res.json()
-        asset_uuid = json_res['asset_uuid']  
-            
+              json_res = res.json()
+              asset_uuid = json_res['asset_uuid'] 
+         
         logging.info(" ### add_dataset_to_factory_data_storage request: " + str(json_res))
         
         return asset_uuid
