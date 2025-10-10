@@ -233,9 +233,8 @@ def pistis_job_periodic():
               res = requests.put(url=endpoint, headers=headers, data=payload, files=files)
               json_res = res.json()
               asset_uuid = json_res['asset_uuid'] 
-         
-        logging.info(" ### add_dataset_to_factory_data_storage request: " + str(json_res))
         
+        logging.info(" ### add_dataset_to_factory_data_storage ASSET UUID returned: " + str(asset_uuid))
         return asset_uuid
     
     def get_dataset_to_factory_data_storage(ds_path, access_token):
