@@ -645,7 +645,7 @@ def pistis_job_template():
                     #    raise Exception("File format not supported. Formats supported are: CSV, Json, Xml, TSV, Xlsx and Parquet")
                         
                     # Put  data in the bucket
-                    result = client.put_object(MINIO_BUCKET_NAME, file_name + "_jc" + root_run_id + "_jc" + extension, data=BytesIO(decoded_data), length=len(decoded_data)) 
+                    result = client.put_object(MINIO_BUCKET_NAME, file_name + "_jc" + root_run_id + "_jc." + extension, data=BytesIO(decoded_data), length=len(decoded_data)) 
                     
                     # update source using minio uri
                     job_info["source"] = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + result.object_name

@@ -647,7 +647,7 @@ def pistis_job_periodic():
                     #    raise Exception("File format not supported. Formats supported are: CSV, Json, Xml, TSV, Xlsx and Parquet")
                         
                     # Put  data in the bucket
-                    result = client.put_object(MINIO_BUCKET_NAME, file_name + "_jc" + root_run_id + "_jc" + extension, data=BytesIO(decoded_data), length=len(decoded_data)) 
+                    result = client.put_object(MINIO_BUCKET_NAME, file_name + "_jc" + root_run_id + "_jc." + extension, data=BytesIO(decoded_data), length=len(decoded_data)) 
                     
                     # update source using minio uri
                     job_info["source"] = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME + "/" + result.object_name
@@ -991,7 +991,7 @@ def pistis_job_periodic():
                 logging.info(" pistis_job_periodic#requires_append_data: Appended DS got it from Factory storage ...")
 
                 # Rename file to JC naming 
-                job_info["source"] = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + getFileName(job_info["source"]) + "_jc" + root_run_id + "_jc" + getFileExtension(job_info["source"])    
+                job_info["source"] = "s3://" + MINIO_URL + "/" + MINIO_BUCKET_NAME  + "/" + getFileName(job_info["source"]) + "_jc" + root_run_id + "_jc." + getFileExtension(job_info["source"])    
                 
                 # update source using minio uri
                 logging.info(" pistis_job_periodic#Persisting Resuls in Minio ... ")
