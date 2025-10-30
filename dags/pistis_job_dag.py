@@ -789,7 +789,7 @@ def pistis_job_template():
         context = get_current_context()
         endpoint = job_info["endpoint"]
         method = job_info["method"]
-        ctype=  job_info["content-type"] if "content-type" in job_info else None
+        ctype=  job_info["content-type"]
         job_name = job_info["job_name"]
         wf_results_id = job_info['wf_results_id'] 
         access_token = job_info['access_token'] 
@@ -798,7 +798,7 @@ def pistis_job_template():
                     "Authorization": "Bearer " + access_token 
                   }
         
-        if (ctype):
+        if (ctype != "*"):
             headers["Accept"] = ctype
         
         #evaluable_attrs = ['file', 'metadata']
