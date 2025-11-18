@@ -376,6 +376,7 @@ def pistis_job_template():
                        "ds_language": "en",
                        "ds_description": ds_description,
                        "date_issued": date,
+                       "date_issued_dist": date,
                        "date_modified": date,
                        "ds_title": ds_title,
                        "file_name": raw_name,
