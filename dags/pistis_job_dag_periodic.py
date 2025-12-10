@@ -17,6 +17,7 @@ import pendulum
 import requests
 import pathlib 
 import logging
+import ast
 from airflow import Dataset
 from airflow.decorators import dag, task
 from airflow.providers.http.operators.http import SimpleHttpOperator
@@ -583,8 +584,50 @@ def pistis_job_periodic():
            # Read the TSV file into a DataFrame
            df = pd.read_csv(file)   
 
-        convert_df_to_file(df, converted_file, output_format.strip())   
+        convert_df_to_file(df, converted_file, output_format.strip()) 
 
+
+    def merge_extra_headers(input_data, headers, allow_override_auth=False):
+        """
+        Finds 'headers' in input_data (list of {'name','value'}) and merges into headers dict.
+        - 'value' may be a list or a stringified list of {'name','value'} pairs.
+        - If allow_override_auth=False, it will not override an existing Authorization header.
+        """
+        # Find the headers item (single pass, early exit)
+        headers_item = None
+        for it in input_data or []:
+            if (it.get('name') or '').lower() == 'headers':
+                headers_item = it
+                break
+
+        if not headers_item:
+            return  # nothing to merge
+
+        raw = headers_item.get('value')
+
+        # Parse if string (safe parse)
+        if isinstance(raw, str):
+            try:
+                raw = ast.literal_eval(raw)
+            except Exception:
+                # Not a parseable list; nothing to do
+                return
+
+        # Expect a list of {name, value}
+        if not isinstance(raw, list):
+            return
+
+        # Merge into headers
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            name = item.get('name')
+            value = item.get('value')
+            if name is None or value is None:
+                continue
+            if not allow_override_auth and name.lower() == 'authorization' and 'Authorization' in headers:
+                continue  # keep existing token
+            headers[name] = value      
 
     @task()
     def retrieve_and_dump_data_and_metadata_to_bucket():
@@ -820,6 +863,9 @@ def pistis_job_periodic():
         
         if (ctype != "*"):
             headers["Accept"] = ctype
+
+        #check if aditional headers are provided as part of job params
+        merge_extra_headers(input_data, headers, allow_override_auth=False)    
         
         #evaluable_attrs = ['file', 'metadata']
         evaluable_attrs = ['file']
