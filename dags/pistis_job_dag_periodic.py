@@ -865,7 +865,7 @@ def pistis_job_periodic():
             headers["Accept"] = ctype
 
         #check if aditional headers are provided as part of job params
-        merge_extra_headers(input_data, headers, allow_override_auth=False)    
+        #merge_extra_headers(input_data, headers, allow_override_auth=False)    
         
         #evaluable_attrs = ['file', 'metadata']
         evaluable_attrs = ['file']
