@@ -1,6 +1,6 @@
 import hashlib
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from airflow.decorators import dag, task
 from airflow.models.param import Param
 from airflow.operators.python import get_current_context
@@ -261,20 +261,14 @@ def pistis_fingerprint_dag():
 
             result_url = f"s3://{MINIO_URL}/{MINIO_BUCKET_NAME}/{result_object}"
 
-            presigned_url = client.presigned_get_object(
-                MINIO_BUCKET_NAME,
-                result_object,
-                expires=timedelta(hours=1)
-            )
-
             logging.info(f"### Fingerprint result stored at: {result_url}")
-            logging.info("### Generated presigned URL for fingerprint result")
 
             import requests
 
             similarity_payload = {
                 "dataset_id": dataset_id,
-                "fingerprint_url": presigned_url
+                "fingerprint": result_json,
+                "source_url": result_url
             }
 
             logging.info(f"### Notifying similarity service at {similarity_service_url}")
@@ -294,7 +288,6 @@ def pistis_fingerprint_dag():
 
             return {
                 "result_url": result_url,
-                "presigned_url": presigned_url,
                 "fingerprint": fingerprint_value,
                 "algorithm": algorithm,
                 "dataset_id": dataset_id
