@@ -27,6 +27,21 @@ from minio import Minio
             type="string",
             enum=["adhoc_minhash", "datasketch_minhash"],
             description="Fingerprint method to use for CSV datasets"
+        ),
+        "seller_id": Param(
+            "",
+            type="string",
+            description="Keycloak user id of the dataset seller (notified with the similarity result)"
+        ),
+        "buyer_id": Param(
+            "",
+            type="string",
+            description="Keycloak user id of an interested buyer (notified when provided)"
+        ),
+        "access_token": Param(
+            "",
+            type="string",
+            description="Keycloak bearer token forwarded to the similarity + notifications service"
         )
     }
 )
@@ -270,6 +285,16 @@ def pistis_fingerprint_dag():
                 "fingerprint": result_json,
                 "source_url": result_url
             }
+
+            seller_id = (params.get("seller_id") or "").strip()
+            buyer_id = (params.get("buyer_id") or "").strip()
+            access_token = (params.get("access_token") or "").strip()
+            if seller_id:
+                similarity_payload["seller_id"] = seller_id
+            if buyer_id:
+                similarity_payload["buyer_id"] = buyer_id
+            if access_token:
+                similarity_payload["access_token"] = access_token
 
             logging.info(f"### Notifying similarity service at {similarity_service_url}")
             try:
