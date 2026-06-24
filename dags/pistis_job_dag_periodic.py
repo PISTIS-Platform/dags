@@ -664,9 +664,25 @@ def pistis_job_periodic():
                     file_full_name = json_dataset['name']
                     file_name = os.path.splitext(file_full_name)[0]
                     extension = os.path.splitext(file_full_name)[1]
-                    file_base64_string = json_dataset['content']
                     conv_file = "raw_"  + file_full_name
-                    decoded_data = decodebytes(file_base64_string.encode("utf-8"))
+
+                    if 'minio_path' in json_dataset:
+                        # Retrieve dataset binary directly from MinIO
+                        minio_path = json_dataset['minio_path']
+                        s3_path = minio_path[len("s3://"):]
+                        s3_parts = s3_path.split('/', 1)
+                        ds_bucket = s3_parts[0]
+                        ds_object = s3_parts[1]
+                        logging.info(" pistis_job_periodic#retrieve: Retrieving dataset from MinIO: " + minio_path)
+                        response = client.get_object(ds_bucket, ds_object)
+                        decoded_data = response.read()
+                        response.close()
+                        response.release_conn()
+                    else:
+                        logging.warning(" pistis_job_template#retrieve: Dataset does not have 'minio_path', retrieving from 'content' field (embedded in the dag config).")
+                        file_base64_string = json_dataset['content']
+                        decoded_data = decodebytes(file_base64_string.encode("utf-8"))
+
                     bytesio_object = BytesIO(decoded_data)
 
                     # Write the stuff
@@ -895,6 +911,7 @@ def pistis_job_periodic():
                             file = client.get_object(bucket_name,object_name)
                             file_name = object_name
                     else:
+                        logging.warning(" pistis_job_template#callService: Field value is not a valid S3 path. Assuming it is a base64 encoded string embedded in the DAG config!")
                         base64_string = field_value             
                         decoded_data = decodebytes(base64_string.encode("utf-8"))
                         file = BytesIO(decoded_data)
